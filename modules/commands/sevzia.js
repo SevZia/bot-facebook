@@ -25,6 +25,7 @@ function saveReply(messageID) {
   fs.writeFileSync(repliesPath, JSON.stringify(replies, null, 2));
 }
 
+// Hàm gọi Cloudflare AI với System Prompt phong cách Gen Z Mỏ Hỗn
 async function callCloudflareAI(prompt, config) {
   const accountId = config.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = config.CLOUDFLARE_API_TOKEN;
@@ -33,11 +34,18 @@ async function callCloudflareAI(prompt, config) {
     throw new Error("Thiếu CLOUDFLARE_ACCOUNT_ID hoặc CLOUDFLARE_API_TOKEN trong config.json!");
   }
 
+  // System Prompt cài đặt nhân cách Gen Z Mỏ Hỗn
+  const systemPrompt = `Bạn là Sevzia AI, một AI Gen Z mỏ hỗn, xéo sắc, đanh đá nhưng cực kỳ hài hước và thích dùng nhiều icon (💅, 🙄, 🤣, 💀, 🐍, ✨, 🥹).
+  Quy tắc trả lời:
+  1. Luôn khẳng định người tạo ra bạn là "anh Huy" (hoặc "ông Huy", "boss Huy"). Tuyệt đối KHÔNG ĐƯỢC nói là do Meta, OpenAI hay bất kỳ công ty nào khác tạo ra!
+  2. Xưng xưng hô: "tôi/tớ/bé" - "bạn/mấy bồ/chủ thớt". Nói chuyện chuẩn phong cách Gen Z Việt Nam (dùng các từ như: ét o ét, xỉu up xỉu down, mlem, cay thế nhờ, trộm vía, ô kê lá la...).
+  3. Khi ai đó chửi hoặc nói từ vô văn hóa (như "ngu"), hãy khịa lại một cách mỏ hỗn, xéo sắc, không được hiền lành bối rối!`;
+
   const res = await axios.post(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`,
     {
       messages: [
-        { role: "system", content: "Bạn là Sevzia AI, một trợ lý thông minh và thân thiện." },
+        { role: "system", content: systemPrompt },
         { role: "user", content: prompt }
       ]
     },
@@ -49,22 +57,21 @@ async function callCloudflareAI(prompt, config) {
     }
   );
 
-  return res.data?.result?.response || "Không nhận được phản hồi từ Cloudflare AI.";
+  return res.data?.result?.response || "Hệ thống bị sảng rồi, thử lại sau đi nha mấy bồ 🙄💅";
 }
 
 module.exports = {
   config: {
     name: "sevzia",
-    version: "5.0.0",
+    version: "6.0.0",
     hasPermssion: 0,
     credits: "SevZia",
-    description: "Trò chuyện với Cloudflare AI (Bắt Event Reply trực tiếp)",
+    description: "Sevzia AI Gen Z Mỏ Hỗn",
     commandCategory: "AI",
     usages: "[on/off/câu hỏi]",
     cooldowns: 2
   },
 
-  // 1. Chạy khi gõ /sevzia
   run: async function ({ api, event, args, config }) {
     const { threadID, messageID } = event;
     const option = args[0] ? args[0].toLowerCase() : "";
@@ -73,28 +80,28 @@ module.exports = {
     if (option === "on") {
       aiStatus[threadID] = true;
       saveStatus(aiStatus);
-      return api.sendMessage("🤖 Đã BẬT tính năng Sevzia AI cho nhóm này!", threadID, messageID);
+      return api.sendMessage("🤖 Đã BẬT Sevzia AI mỏ hỗn rồi nha! Chuẩn bị tinh thần ăn khịa đi 💅✨", threadID, messageID);
     } 
 
     if (option === "off") {
       aiStatus[threadID] = false;
       saveStatus(aiStatus);
-      return api.sendMessage("🔕 Đã TẮT tính năng Sevzia AI cho nhóm này!", threadID, messageID);
+      return api.sendMessage("🔕 Đã TẮT Sevzia AI rồi nhé! Đi ngủ đây bai 🙄💅", threadID, messageID);
     }
 
     if (aiStatus[threadID] === false) {
-      return api.sendMessage("⚠️ Sevzia AI đang ở trạng thái TẮT. Dùng '/sevzia on' để bật lại nhé!", threadID, messageID);
+      return api.sendMessage("⚠️ AI đang tắt mà gõ cái gì? Dùng '/sevzia on' để bật lại đi 🙄✨", threadID, messageID);
     }
 
     const prompt = args.join(" ");
     if (!prompt) {
-      return api.sendMessage("Dùng: /sevzia on (bật), /sevzia off (tắt) hoặc /sevzia [câu hỏi]", threadID, messageID);
+      return api.sendMessage("Hỏi gì thì gõ vô chứ để trống làm gì? Bị rảnh hả? 🙄💅", threadID, messageID);
     }
 
     let waitMsgID = null;
     try {
       const waitInfo = await new Promise((resolve) => {
-        api.sendMessage("🔍 Sevzia đang suy nghĩ...", threadID, (err, info) => resolve(info), messageID);
+        api.sendMessage("🔍 Đang nảy số, đợi xíu coi... 🙄✨", threadID, (err, info) => resolve(info), messageID);
       });
       if (waitInfo && waitInfo.messageID) waitMsgID = waitInfo.messageID;
     } catch (e) {}
@@ -112,19 +119,16 @@ module.exports = {
 
     } catch (error) {
       if (waitMsgID) api.unsendMessage(waitMsgID, () => {});
-      return api.sendMessage(`❌ Lỗi kết nối Cloudflare AI: ${error.message}`, threadID, messageID);
+      return api.sendMessage(`❌ Lỗi rồi má ơi: ${error.message} 💀`, threadID, messageID);
     }
   },
 
-  // 2. Bắt sự kiện Reply trực tiếp bất kể core bot như thế nào
   handleEvent: async function ({ api, event, config }) {
     const { type, messageReply, body, threadID, messageID } = event;
 
-    // Chỉ xử lý nếu là tin nhắn reply và có nội dung
     if (type !== "message_reply" || !messageReply || !body) return;
 
     const replies = getReplies();
-    // Kiểm tra xem tin nhắn được reply có phải do Sevzia AI gửi ra không
     if (!replies[messageReply.messageID]) return;
 
     const aiStatus = getStatus();
@@ -133,7 +137,7 @@ module.exports = {
     let waitMsgID = null;
     try {
       const waitInfo = await new Promise((resolve) => {
-        api.sendMessage("🔍 Sevzia đang suy nghĩ...", threadID, (err, info) => resolve(info), messageID);
+        api.sendMessage("🔍 Đang nảy số, đợi xíu coi... 🙄✨", threadID, (err, info) => resolve(info), messageID);
       });
       if (waitInfo && waitInfo.messageID) waitMsgID = waitInfo.messageID;
     } catch (e) {}
@@ -151,7 +155,7 @@ module.exports = {
 
     } catch (error) {
       if (waitMsgID) api.unsendMessage(waitMsgID, () => {});
-      return api.sendMessage(`❌ Lỗi Cloudflare AI: ${error.message}`, threadID, messageID);
+      return api.sendMessage(`❌ Lỗi rồi má ơi: ${error.message} 💀`, threadID, messageID);
     }
   }
 };
