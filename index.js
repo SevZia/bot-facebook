@@ -1,4 +1,4 @@
-const login = require("fca-horizon-remake");
+const login = require("fca-project-orion");
 const fs = require("fs-extra");
 const path = require("path");
 const express = require("express");
