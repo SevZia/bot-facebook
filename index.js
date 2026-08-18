@@ -1,30 +1,4 @@
-// Bắt buộc vá tough-cookie trước khi require FCA
-try {
-  const tough = require("tough-cookie");
-  if (tough && tough.CookieJar && tough.CookieJar.prototype) {
-    const originalSetCookie = tough.CookieJar.prototype.setCookie;
-    tough.CookieJar.prototype.setCookie = function (cookie, url, options, cb) {
-      if (typeof options === "function") {
-        cb = options;
-        options = {};
-      }
-      options = options || {};
-      options.ignoreError = true; // Bỏ qua lỗi mismatch domain
-      return originalSetCookie.call(this, cookie, url, options, cb);
-    };
-
-    const originalSetCookieSync = tough.CookieJar.prototype.setCookieSync;
-    tough.CookieJar.prototype.setCookieSync = function (cookie, url, options) {
-      options = options || {};
-      options.ignoreError = true; // Bỏ qua lỗi mismatch domain
-      return originalSetCookieSync.call(this, cookie, url, options);
-    };
-  }
-} catch (e) {
-  console.error("⚠️ Không thể monkey-patch tough-cookie:", e.message);
-}
-
-const login = require("@dongdev/fca-unofficial");
+const login = require("fca-project-orion");
 const fs = require("fs-extra");
 const path = require("path");
 const express = require("express");
@@ -51,7 +25,7 @@ try {
   console.error("⚠️ Không đọc được config.json, dùng config mặc định.");
 }
 
-// Tìm file AppState (Chấp nhận cả appstate.json và appState.json)
+// Tìm file AppState
 let appStatePath = "./appstate.json";
 if (!fs.existsSync(appStatePath) && fs.existsSync("./appState.json")) {
   appStatePath = "./appState.json";
@@ -65,15 +39,6 @@ if (!fs.existsSync(appStatePath)) {
 let appState;
 try {
   appState = JSON.parse(fs.readFileSync(appStatePath, "utf-8"));
-
-  // Tự động chuyển domain chuẩn
-  if (Array.isArray(appState)) {
-    appState = appState.map(item => ({
-      ...item,
-      domain: ".facebook.com",
-      hostOnly: false
-    }));
-  }
 } catch (e) {
   console.error("❌ LỖI: File appstate.json bị hỏng hoặc không đúng định dạng JSON!");
   process.exit(1);
