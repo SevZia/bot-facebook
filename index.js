@@ -3,7 +3,7 @@ const { login } = require("ws3-fca");
 const fs = require("fs-extra");
 const path = require("path");
 
-// --- TẠO WEB SERVER ĐỂ RENDER BIND PORT (TRÁNH BỊ TREO DEPLOY) ---
+// --- TẠO WEB SERVER ĐỂ RENDER BIND PORT ---
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -71,8 +71,13 @@ login({ appState }, options, (err, api) => {
   console.log(`🤖 ID Bot: ${api.getCurrentUserID()}`);
   console.log("------------------------------------------");
 
-  // Load danh sách lệnh
-  const commands = new Map();
+  // Khởi tạo lưu trữ toàn cục
+  global.client = {
+    commands: new Map(),
+    events: new Map(),
+    cooldowns: new Map()
+  };
+
   const cmdDir = path.join(__dirname, "modules", "commands");
 
   if (fs.existsSync(cmdDir)) {
@@ -81,10 +86,10 @@ login({ appState }, options, (err, api) => {
       try {
         const cmd = require(path.join(cmdDir, file));
         if (cmd.config && cmd.config.name) {
-          commands.set(cmd.config.name.toLowerCase(), cmd);
+          global.client.commands.set(cmd.config.name.toLowerCase(), cmd);
           if (cmd.config.aliases && Array.isArray(cmd.config.aliases)) {
             for (const alias of cmd.config.aliases) {
-              commands.set(alias.toLowerCase(), cmd);
+              global.client.commands.set(alias.toLowerCase(), cmd);
             }
           }
         }
@@ -92,6 +97,7 @@ login({ appState }, options, (err, api) => {
         console.error(`❌ Lỗi load file lệnh ${file}:`, e.message);
       }
     }
+    console.log(`📦 Đã nạp thành công ${global.client.commands.size} lệnh/alias!`);
   }
 
   api.listenMqtt(async (err, event) => {
@@ -100,13 +106,13 @@ login({ appState }, options, (err, api) => {
       return;
     }
 
-    // Chạy handleEvent cho tất cả các file có hàm này
-    for (const [, cmd] of commands) {
+    // Chạy handleEvent cho các file có hàm này
+    for (const [, cmd] of global.client.commands) {
       if (typeof cmd.handleEvent === "function") {
         try {
-          await cmd.handleEvent({ api, event });
+          await cmd.handleEvent({ api, event, client: global.client });
         } catch (e) {
-          console.error("Lỗi handleEvent:", e);
+          console.error(`Lỗi handleEvent (${cmd.config?.name}):`, e);
         }
       }
     }
@@ -118,15 +124,39 @@ login({ appState }, options, (err, api) => {
         const args = text.slice(1).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
 
-        if (commands.has(commandName)) {
-          const cmd = commands.get(commandName);
+        if (global.client.commands.has(commandName)) {
+          const cmd = global.client.commands.get(commandName);
           try {
-            await cmd.run({ api, event, args });
+            await cmd.run({ 
+              api, 
+              event, 
+              args, 
+              client: global.client,
+              Users: {}, 
+              Threads: {}, 
+              Currencies: {} 
+            });
           } catch (e) {
-            console.error(`Lỗi chạy lệnh /${commandName}:`, e);
+            console.error(`❌ Lỗi khi thực hiện lệnh /${commandName}:`, e);
+            
+            // Gửi trực tiếp thông báo lỗi về nhóm chat để dễ nhận biết
+            api.sendMessage(
+              `⚠️ Không thể thực thi lệnh /${commandName}\n` +
+              `📌 Lỗi chi tiết: ${e.message || "Không xác định"}`,
+              event.threadID,
+              event.messageID
+            );
           }
         }
       }
     }
   });
+});
+
+// Chống crash ứng dụng khi có lỗi bất ngờ
+process.on("unhandledRejection", (err) => {
+  console.error("⚠️ Unhandled Rejection Error:", err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("⚠️ Uncaught Exception Error:", err);
 });
