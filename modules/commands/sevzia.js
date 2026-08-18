@@ -16,7 +16,7 @@ function saveStatus(data) {
 module.exports = {
   config: {
     name: "sevzia",
-    version: "2.2.0",
+    version: "2.3.0",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Trò chuyện với Cloudflare AI",
@@ -84,15 +84,15 @@ module.exports = {
 
       const replyText = res.data?.result?.response || "Không nhận được phản hồi từ Cloudflare AI.";
 
-      if (waitMsg && waitMsg.messageID) {
-        api.unsendMessage(waitMsg.messageID);
+      if (waitMsg) {
+        api.unsendMessage(waitMsg);
       }
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, messageID);
 
     } catch (error) {
       console.error("Lỗi Cloudflare AI:", error.response?.data || error.message);
-      if (waitMsg && waitMsg.messageID) {
-        api.unsendMessage(waitMsg.messageID);
+      if (waitMsg) {
+        api.unsendMessage(waitMsg);
       }
       return api.sendMessage(`❌ Lỗi kết nối Cloudflare AI: ${error.message}`, threadID, messageID);
     }
