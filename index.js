@@ -2,29 +2,30 @@ const { login } = require("ws3-fca");
 const fs = require("fs-extra");
 const path = require("path");
 
-const appStatePath = path.join(__dirname, "appstate.json");
-
-if (!fs.existsSync(appStatePath)) {
-  console.error("❌ Không tìm thấy file appstate.json!");
-  process.exit(1);
-}
-
 let appState;
 
-// Ưu tiên đọc từ biến môi trường APPSTATE của Render trước
+// 1. Ưu tiên đọc từ biến môi trường APPSTATE của Render
 if (process.env.APPSTATE) {
   try {
     appState = JSON.parse(process.env.APPSTATE);
   } catch (e) {
     console.error("❌ Biến môi trường APPSTATE bị sai định dạng JSON!");
+    process.exit(1);
   }
-} else if (fs.existsSync("./appstate.json")) {
-  // Nếu chạy ở máy local thì đọc từ file appstate.json
-  appState = JSON.parse(fs.readFileSync("./appstate.json", "utf8"));
-}
- catch (e) {
-  console.error("❌ File appstate.json bị lỗi định dạng JSON:", e.message);
-  process.exit(1);
+} else {
+  // 2. Nếu không có biến môi trường thì tìm file appstate.json ở local
+  const appStatePath = path.join(__dirname, "appstate.json");
+  if (fs.existsSync(appStatePath)) {
+    try {
+      appState = JSON.parse(fs.readFileSync(appStatePath, "utf8"));
+    } catch (e) {
+      console.error("❌ File appstate.json bị lỗi định dạng JSON:", e.message);
+      process.exit(1);
+    }
+  } else {
+    console.error("❌ Không tìm thấy biến APPSTATE trên Render hoặc file appstate.json!");
+    process.exit(1);
+  }
 }
 
 const options = {
