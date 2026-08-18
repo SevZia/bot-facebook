@@ -21,14 +21,14 @@ async function summarizeChat(chatLogs, config) {
 
   if (!accountId || !apiToken) return "Chưa cấu hình API Cloudflare để tóm tắt.";
 
-  const prompt = `Đây là các tin nhắn nhóm chat trong lúc chủ phòng vắng mặt:\n${chatLogs.join("\n")}\n\nHãy tóm tắt ngắn gọn 2-3 câu xem mọi người đã nói gì (dùng vài icon, phong cách Gen Z).`;
+  const prompt = `Đây là nội dung tin nhắn trong ĐÚNG nhóm chat này:\n${chatLogs.join("\n")}\n\nHãy tóm tắt ngắn gọn 2-3 câu nội dung chính (phong cách Gen Z).`;
 
   try {
     const res = await axios.post(
       `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`,
       {
         messages: [
-          { role: "system", content: "Bạn là trợ lý tóm tắt tin nhắn ngắn gọn." },
+          { role: "system", content: "Bạn là trợ lý tóm tắt trung thực, chỉ tóm tắt tin nhắn được cung cấp." },
           { role: "user", content: prompt }
         ]
       },
@@ -43,7 +43,7 @@ async function summarizeChat(chatLogs, config) {
 module.exports = {
   config: {
     name: "afk",
-    version: "11.0.0",
+    version: "14.0.0",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Bật AFK, báo lý do khi bị tag và tóm tắt bằng AI khi online",
@@ -52,7 +52,6 @@ module.exports = {
     cooldowns: 2
   },
 
-  // 1. Lệnh bật AFK
   run: async function ({ api, event, args }) {
     const { senderID, threadID, messageID } = event;
     const reason = args.join(" ") || "Không có lý do";
@@ -66,6 +65,7 @@ module.exports = {
 
     afkData[senderID] = {
       name: name,
+      threadID: threadID, // LƯU RÕ ID NHÓM BẬT AFK
       time: Date.now(),
       reason: reason,
       mentions: [],
@@ -76,27 +76,25 @@ module.exports = {
     return api.sendMessage(`✅ Đã bật chế độ AFK!\n📝 Lý do: ${reason}`, threadID, messageID);
   },
 
-  // 2. Lắng nghe sự kiện
   handleEvent: async function ({ api, event, config }) {
     const { senderID, threadID, messageID, mentions, body } = event;
     if (!threadID || !body) return;
 
-    // BỎ QUA NẾU LÀ CÂU LỆNH BẬT AFK (Tránh tự kích hoạt tắt AFK)
-    if (body.startsWith("/") || body.toLowerCase().startsWith("afk")) return;
+    if (body.startsWith("/") || body.startsWith("!")) return;
 
     const afkData = getAfkData();
 
-    // A. Kiểm tra xem tin nhắn có tag người đang AFK không
+    // 1. Kiểm tra Tag & Lưu tin nhắn nhóm
     let isTagMsg = false;
     for (const [afkUID, userAfk] of Object.entries(afkData)) {
-      let isTagged = false;
+      // CHỈ XỬ LÝ NẾU TIN NHẮN BẮT NGUỒN TỪ ĐÚNG NHÓM MÀ NGƯỜI ĐÓ BẬT AFK
+      if (userAfk.threadID !== threadID) continue;
 
-      // Tag qua Mention xanh của FB
+      let isTagged = false;
       if (mentions && Object.keys(mentions).length > 0 && mentions[afkUID]) {
         isTagged = true;
       }
 
-      // Tag qua Chữ viết (Huy, Văn Huy, @Anh Huy,...)
       const lowerBody = body.toLowerCase();
       if (!isTagged && (lowerBody.includes("huy") || (userAfk.name && lowerBody.includes(userAfk.name.toLowerCase())))) {
         isTagged = true;
@@ -116,10 +114,9 @@ module.exports = {
         userAfk.mentions.push({ authorID: senderID, authorName: authorName, content: body });
         saveAfkData(afkData);
 
-        // Trả lời báo lý do AFK khi có người tag
         return api.sendMessage(`⚠️ ${userAfk.name} hiện đang AFK!\n📝 Lý do: ${userAfk.reason}`, threadID, messageID);
       } else if (senderID !== afkUID) {
-        // Lưu nhật ký chat cho AI tóm tắt
+        // CHỈ LƯU CHAT CỦA ĐÚNG NHÓM NÀY
         let authorName = "Thành viên";
         try {
           const userInfo = await api.getUserInfo(senderID);
@@ -130,9 +127,8 @@ module.exports = {
       }
     }
 
-    // B. Khi chính người AFK nhắn tin lại (KHÔNG PHẢI LỆNH AFK) -> Mới chính thức Tắt AFK & Xuất báo cáo
-    if (afkData[senderID] && !isTagMsg) {
-      // Bỏ qua nếu thời gian vừa bật AFK chưa quá 3 giây (tránh trùng lặp tin nhắn)
+    // 2. Tắt AFK khi chính người đó nhắn tin lại Ở ĐÚNG NHÓM ĐÃ BẬT AFK
+    if (afkData[senderID] && afkData[senderID].threadID === threadID && !isTagMsg) {
       if (Date.now() - afkData[senderID].time < 3000) return;
 
       const userAfk = afkData[senderID];
@@ -153,6 +149,11 @@ module.exports = {
         });
       } else {
         replyMsg += `✨ Không có ai tag bạn trong lúc vắng mặt.\n`;
+      }
+
+      if (!userAfk.chatLogs || userAfk.chatLogs.length === 0) {
+        replyMsg += `\n📝 [ Tóm tắt cuộc trò chuyện ]:\nKhông có cuộc trò chuyện nào trong lúc vắng mặt.`;
+        return api.sendMessage(replyMsg, threadID, messageID);
       }
 
       api.sendMessage("🔍 Đang tóm tắt lại cuộc trò chuyện...", threadID, async (err, info) => {
