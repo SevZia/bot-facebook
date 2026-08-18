@@ -15,16 +15,15 @@ function saveAfkData(data) {
 module.exports = {
   config: {
     name: "afk",
-    version: "2.0.0",
+    version: "3.0.0",
     hasPermssion: 0,
     credits: "SevZia",
-    description: "Bật chế độ AFK và thông báo tin nhắn khi có người tag",
+    description: "Tự động ghi nhận danh sách tin nhắn khi bị tag lúc AFK",
     commandCategory: "Tiện ích",
     usages: "[lý do]",
-    cooldowns: 5
+    cooldowns: 2
   },
 
-  // 1. Kích hoạt chế độ AFK khi gõ /afk
   run: async function ({ api, event, args }) {
     const { senderID, threadID, messageID } = event;
     const reason = args.join(" ") || "Không có lý do";
@@ -33,19 +32,20 @@ module.exports = {
     afkData[senderID] = {
       time: Date.now(),
       reason: reason,
-      mentions: [] // Mảng lưu thông tin các tin nhắn tag
+      mentions: []
     };
 
     saveAfkData(afkData);
-    return api.sendMessage(`🔑 Bạn đã bật chế độ AFK.\n📝 Lý do: ${reason}`, threadID, messageID);
+    return api.sendMessage(`✅ Đã bật chế độ AFK!\n📝 Lý do: ${reason}`, threadID, messageID);
   },
 
-  // 2. Tự động kiểm tra sự kiện tin nhắn trong box
   handleEvent: async function ({ api, event }) {
     const { senderID, threadID, messageID, mentions, body } = event;
+    if (!threadID) return;
+
     const afkData = getAfkData();
 
-    // A. Nếu người dùng đang AFK mà nhắn tin -> TẮT AFK & BÁO CÁO TIN NHẮN ĐƯỢC TAG
+    // 1. Khi người AFK nhắn tin trở lại
     if (afkData[senderID]) {
       const userAfk = afkData[senderID];
       const timeAfk = Math.floor((Date.now() - userAfk.time) / 1000);
@@ -56,7 +56,7 @@ module.exports = {
       let replyMsg = `👋 Chào mừng bạn quay lại!\n⏱️ Thời gian AFK: ${timeStr}\n📝 Lý do: ${userAfk.reason}\n\n`;
 
       if (userAfk.mentions && userAfk.mentions.length > 0) {
-        replyMsg += `✨ Danh sách ${userAfk.mentions.length} tin nhắn tag bạn trong lúc vắng mặt:\n`;
+        replyMsg += `📌 Danh sách ${userAfk.mentions.length} tin nhắn tag bạn khi vắng mặt:\n`;
         userAfk.mentions.forEach((item, index) => {
           replyMsg += `\n${index + 1}. 👤 ${item.authorName}: "${item.content}"`;
         });
@@ -70,29 +70,31 @@ module.exports = {
       return api.sendMessage(replyMsg, threadID, messageID);
     }
 
-    // B. Nếu có người tag người đang AFK -> BÁO CHO NGUỜI TAG & LƯU LẠI NỘI DUNG
+    // 2. Khi có người tag ai đó đang AFK
     if (mentions && Object.keys(mentions).length > 0) {
       for (const [taggedUID, taggedName] of Object.entries(mentions)) {
-        if (afkData[taggedUID]) {
+        if (afkData[taggedUID] && taggedUID !== senderID) {
           const userAfk = afkData[taggedUID];
 
-          // Lấy tên người tag
-          let authorName = "Ai đó";
+          let authorName = "Thành viên";
           try {
             const userInfo = await api.getUserInfo(senderID);
-            authorName = userInfo[senderID]?.name || "Người dùng";
+            if (userInfo && userInfo[senderID]) {
+              authorName = userInfo[senderID].name;
+            }
           } catch (e) {}
 
-          // Lưu tin nhắn tag vào danh sách
+          const cleanName = taggedName.replace("@", "");
+          const contentText = body ? body.replace(taggedName, "").trim() : "Đã tag bạn";
+
           userAfk.mentions.push({
             authorID: senderID,
             authorName: authorName,
-            content: body || "Đã tag bạn"
+            content: contentText || "Đã tag bạn"
           });
           saveAfkData(afkData);
 
-          // Báo cho người tag biết
-          api.sendMessage(`⚠️ Người dùng ${taggedName.replace("@", "")} hiện đang AFK!\n📝 Lý do: ${userAfk.reason}`, threadID, messageID);
+          return api.sendMessage(`⚠️ ${cleanName} hiện đang AFK!\n📝 Lý do: ${userAfk.reason}`, threadID, messageID);
         }
       }
     }
