@@ -15,7 +15,7 @@ function saveAfkData(data) {
 module.exports = {
   config: {
     name: "afk",
-    version: "3.0.0",
+    version: "4.0.0",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Tự động ghi nhận danh sách tin nhắn khi bị tag lúc AFK",
@@ -29,7 +29,15 @@ module.exports = {
     const reason = args.join(" ") || "Không có lý do";
     const afkData = getAfkData();
 
+    // Lấy tên người dùng để quét text tag
+    let name = "Anh Huy";
+    try {
+      const userInfo = await api.getUserInfo(senderID);
+      if (userInfo && userInfo[senderID]) name = userInfo[senderID].name;
+    } catch (e) {}
+
     afkData[senderID] = {
+      name: name,
       time: Date.now(),
       reason: reason,
       mentions: []
@@ -41,12 +49,12 @@ module.exports = {
 
   handleEvent: async function ({ api, event }) {
     const { senderID, threadID, messageID, mentions, body } = event;
-    if (!threadID) return;
+    if (!threadID || !body) return;
 
     const afkData = getAfkData();
 
-    // 1. Khi người AFK nhắn tin trở lại
-    if (afkData[senderID]) {
+    // 1. Nếu người AFK nhắn tin KHÔNG PHẢI câu tag/kiểm tra -> Tắt AFK & Thống kê
+    if (afkData[senderID] && !body.toLowerCase().includes(afkData[senderID].name.toLowerCase())) {
       const userAfk = afkData[senderID];
       const timeAfk = Math.floor((Date.now() - userAfk.time) / 1000);
       const minutes = Math.floor(timeAfk / 60);
@@ -70,32 +78,38 @@ module.exports = {
       return api.sendMessage(replyMsg, threadID, messageID);
     }
 
-    // 2. Khi có người tag ai đó đang AFK
-    if (mentions && Object.keys(mentions).length > 0) {
-      for (const [taggedUID, taggedName] of Object.entries(mentions)) {
-        if (afkData[taggedUID] && taggedUID !== senderID) {
-          const userAfk = afkData[taggedUID];
+    // 2. Kiểm tra xem tin nhắn có tag người đang AFK không (Quét cả Mention xanh & Text thường)
+    for (const [afkUID, userAfk] of Object.entries(afkData)) {
+      let isTagged = false;
 
-          let authorName = "Thành viên";
-          try {
-            const userInfo = await api.getUserInfo(senderID);
-            if (userInfo && userInfo[senderID]) {
-              authorName = userInfo[senderID].name;
-            }
-          } catch (e) {}
+      // A. Quét qua Mention chuẩn của FB
+      if (mentions && Object.keys(mentions).length > 0) {
+        if (mentions[afkUID]) isTagged = true;
+      }
 
-          const cleanName = taggedName.replace("@", "");
-          const contentText = body ? body.replace(taggedName, "").trim() : "Đã tag bạn";
-
-          userAfk.mentions.push({
-            authorID: senderID,
-            authorName: authorName,
-            content: contentText || "Đã tag bạn"
-          });
-          saveAfkData(afkData);
-
-          return api.sendMessage(`⚠️ ${cleanName} hiện đang AFK!\n📝 Lý do: ${userAfk.reason}`, threadID, messageID);
+      // B. Quét qua Chữ thường (Ví dụ ai đó gõ Anh Huy hoặc @Anh Huy)
+      if (!isTagged && userAfk.name) {
+        if (body.toLowerCase().includes(userAfk.name.toLowerCase())) {
+          isTagged = true;
         }
+      }
+
+      // Bắt được tin nhắn Tag
+      if (isTagged && senderID !== afkUID) {
+        let authorName = "Thành viên";
+        try {
+          const userInfo = await api.getUserInfo(senderID);
+          if (userInfo && userInfo[senderID]) authorName = userInfo[senderID].name;
+        } catch (e) {}
+
+        userAfk.mentions.push({
+          authorID: senderID,
+          authorName: authorName,
+          content: body
+        });
+        saveAfkData(afkData);
+
+        return api.sendMessage(`⚠️ ${userAfk.name} hiện đang AFK!\n📝 Lý do: ${userAfk.reason}`, threadID, messageID);
       }
     }
   }
