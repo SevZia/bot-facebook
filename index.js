@@ -10,9 +10,19 @@ if (!fs.existsSync(appStatePath)) {
 }
 
 let appState;
-try {
-  appState = JSON.parse(fs.readFileSync(appStatePath, "utf8"));
-} catch (e) {
+
+// Ưu tiên đọc từ biến môi trường APPSTATE của Render trước
+if (process.env.APPSTATE) {
+  try {
+    appState = JSON.parse(process.env.APPSTATE);
+  } catch (e) {
+    console.error("❌ Biến môi trường APPSTATE bị sai định dạng JSON!");
+  }
+} else if (fs.existsSync("./appstate.json")) {
+  // Nếu chạy ở máy local thì đọc từ file appstate.json
+  appState = JSON.parse(fs.readFileSync("./appstate.json", "utf8"));
+}
+ catch (e) {
   console.error("❌ File appstate.json bị lỗi định dạng JSON:", e.message);
   process.exit(1);
 }
