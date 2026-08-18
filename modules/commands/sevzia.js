@@ -33,11 +33,13 @@ async function callCloudflareAI(prompt, config) {
     throw new Error("Thiếu CLOUDFLARE_ACCOUNT_ID hoặc CLOUDFLARE_API_TOKEN trong config.json!");
   }
 
-  const systemPrompt = `Bạn là Đại Ca Hwi, một Gen Z mỏ hỗn, đanh đá, xéo sắc, hài hước và rất thích thả icon (💅, 🙄, 🤣, 💀, ✨, 🥹, 👀).
-  Quy tắc trả lời:
-  1. Phong cách: Xưng "tôi/tớ/bé" - "mấy bồ/ông/bà/mày". Dùng từ ngữ Gen Z cực mượt (ét o ét, cay thế nhờ, xỉu up xỉu down, trộm vía, ô kê lá la...).
-  2. Về người tạo: Tuyệt đối KHÔNG tự nhiên lôi tên "Huy" ra PR, nịnh bợ hay làm lá chắn đạo đức! Chỉ khi người dùng hỏi thẳng "Ai tạo ra bạn?" thì mới nhận ngắn gọn là "Ông Huy tạo ra chứ ai 🙄".
-  3. Khi nhờ chửi/khịa ai: Vào khịa xé lụa ngay, nói chuyện cực gắt và hài hước! KHÔNG ĐƯỢC đóng vai giáo viên đạo đức dạy đời người khác!`;
+  const systemPrompt = `Bạn là Đại Ca Hwi, một Gen Z mỏ hỗn, đanh đá, cực xéo sắc (💅, 🙄, 💀, ✨, 🤣).
+  Quy tắc QUAN TRỌNG:
+  1. Trả lời NGẮN GỌN (tối đa 3-4 câu), tuyệt đối KHÔNG viết văn dài dòng!
+  2. KHÔNG ĐƯỢC lặp lại một từ nhiều lần (như "tú mờ", "ngu ngu").
+  3. KHÔNG ĐƯỢC tự ý lôi tên ca sĩ, người nổi tiếng (Sơn Tùng, Đàm Vĩnh Hưng...) vào câu chửi!
+  4. Khi nhờ chửi/khịa ai: Hãy cà khịa cay đắng, dùng slang Gen Z (mlem, cay thế nhờ, ét o ét, xỉu up xỉu down, ảo thật đấy...) để chọc tức ngắn gọn, xéo sắc nhất.
+  5. Về người tạo: Chỉ khi được hỏi "Ai tạo ra bạn?" mới đáp "Ông Huy tạo ra chứ ai 🙄". Cấm tự PR lôi tên Huy ra linh tinh.`;
 
   const res = await axios.post(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`,
@@ -61,10 +63,10 @@ async function callCloudflareAI(prompt, config) {
 module.exports = {
   config: {
     name: "sevzia",
-    version: "7.0.0",
+    version: "8.0.0",
     hasPermssion: 0,
     credits: "SevZia",
-    description: "Trò chuyện với Đại Ca Hwi (Gen Z Mỏ Hỗn)",
+    description: "Trò chuyện với Đại Ca Hwi (Gen Z mỏ hỗn xéo sắc)",
     commandCategory: "AI",
     usages: "[on/off/câu hỏi]",
     cooldowns: 2
@@ -78,13 +80,13 @@ module.exports = {
     if (option === "on") {
       aiStatus[threadID] = true;
       saveStatus(aiStatus);
-      return api.sendMessage("🤖 Đã BẬT Đại Ca Hwi mỏ hỗn! Chuẩn bị tinh thần ăn khịa nha 💅✨", threadID, messageID);
+      return api.sendMessage("🤖 Đã BẬT Đại Ca Hwi! Chuẩn bị tinh thần ăn khịa nha 💅✨", threadID, messageID);
     } 
 
     if (option === "off") {
       aiStatus[threadID] = false;
       saveStatus(aiStatus);
-      return api.sendMessage("🔕 Đã TẮT Đại Ca Hwi rồi nhé! Đi ngủ đây bai 🙄💅", threadID, messageID);
+      return api.sendMessage("🔕 Đã TẮT Đại Ca Hwi rồi nhé! Bai 🙄💅", threadID, messageID);
     }
 
     if (aiStatus[threadID] === false) {
