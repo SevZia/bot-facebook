@@ -20,7 +20,7 @@ function saveStatus(data) {
 module.exports = {
   config: {
     name: "sevzia",
-    version: "1.2.0",
+    version: "1.3.0",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Trò chuyện với Sevzia AI",
@@ -66,18 +66,18 @@ module.exports = {
     });
 
     try {
-      // Gọi API AI miễn phí tốc độ cao
-      const res = await axios.get(`https://api.sumiproject.net/gemini?q=${encodeURIComponent(prompt)}`);
-      const replyText = res.data?.respond || res.data?.data || "Sevzia chưa nghĩ ra câu trả lời, thử hỏi câu khác nhé!";
+      // Endpoint API AI dự phòng tốc độ cao
+      const res = await axios.get(`https://deku-rest-api.dev/gemini?prompt=${encodeURIComponent(prompt)}`);
+      const replyText = res.data?.gemini || res.data?.result || "Sevzia chưa suy nghĩ ra câu trả lời!";
 
       // Xóa tin nhắn "đang suy nghĩ" và trả lời
       if (waitMsg?.messageID) api.unsendMessage(waitMsg.messageID);
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, messageID);
 
     } catch (error) {
-      console.error("Lỗi Sevzia AI:", error);
+      console.error("Lỗi Sevzia AI:", error.message);
       if (waitMsg?.messageID) api.unsendMessage(waitMsg.messageID);
-      return api.sendMessage(`❌ Server AI hiện đang bận hoặc gặp lỗi, vui lòng thử lại sau!`, threadID, messageID);
+      return api.sendMessage(`❌ Server AI hiện tại đang gặp sự cố kết nối, vui lòng thử lại sau!`, threadID, messageID);
     }
   }
 };
