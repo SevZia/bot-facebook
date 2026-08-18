@@ -38,7 +38,14 @@ if (!fs.existsSync(appStatePath)) {
 
 let appState;
 try {
-  appState = JSON.parse(fs.readFileSync(appStatePath, "utf-8"));
+  const rawState = JSON.parse(fs.readFileSync(appStatePath, "utf-8"));
+  
+  // Tự động chuẩn hóa domain và key cookie cho fca-unofficial
+  appState = rawState.map(item => ({
+    ...item,
+    key: item.key || item.name,
+    domain: "facebook.com"
+  }));
 } catch (e) {
   console.error("❌ LỖI: File appstate.json bị hỏng hoặc không đúng định dạng JSON!");
   process.exit(1);
