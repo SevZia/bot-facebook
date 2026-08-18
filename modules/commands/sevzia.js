@@ -19,9 +19,9 @@ function getReplies() {
   try { return JSON.parse(fs.readFileSync(repliesPath, 'utf-8')); } catch (e) { return {}; }
 }
 
-function saveReply(messageID, authorID) {
+function saveReply(messageID) {
   const replies = getReplies();
-  replies[messageID] = authorID;
+  replies[messageID] = true;
   fs.writeFileSync(repliesPath, JSON.stringify(replies, null, 2));
 }
 
@@ -55,17 +55,18 @@ async function callCloudflareAI(prompt, config) {
 module.exports = {
   config: {
     name: "sevzia",
-    version: "4.0.0",
+    version: "5.0.0",
     hasPermssion: 0,
     credits: "SevZia",
-    description: "Trò chuyện với Cloudflare AI",
+    description: "Trò chuyện với Cloudflare AI (Bắt Event Reply trực tiếp)",
     commandCategory: "AI",
     usages: "[on/off/câu hỏi]",
     cooldowns: 2
   },
 
+  // 1. Chạy khi gõ /sevzia
   run: async function ({ api, event, args, config }) {
-    const { threadID, messageID, senderID } = event;
+    const { threadID, messageID } = event;
     const option = args[0] ? args[0].toLowerCase() : "";
     const aiStatus = getStatus();
 
@@ -105,16 +106,7 @@ module.exports = {
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
         if (info && info.messageID) {
-          // Lưu vào mảng tạm của RAM
-          if (!global.client) global.client = {};
-          if (!global.client.handleReply) global.client.handleReply = [];
-          global.client.handleReply.push({
-            name: "sevzia",
-            messageID: info.messageID,
-            author: senderID
-          });
-          // Lưu cố định vào file json
-          saveReply(info.messageID, senderID);
+          saveReply(info.messageID);
         }
       }, messageID);
 
@@ -124,12 +116,19 @@ module.exports = {
     }
   },
 
-  handleReply: async function ({ api, event, config }) {
-    const { threadID, messageID, body, senderID } = event;
-    const aiStatus = getStatus();
+  // 2. Bắt sự kiện Reply trực tiếp bất kể core bot như thế nào
+  handleEvent: async function ({ api, event, config }) {
+    const { type, messageReply, body, threadID, messageID } = event;
 
+    // Chỉ xử lý nếu là tin nhắn reply và có nội dung
+    if (type !== "message_reply" || !messageReply || !body) return;
+
+    const replies = getReplies();
+    // Kiểm tra xem tin nhắn được reply có phải do Sevzia AI gửi ra không
+    if (!replies[messageReply.messageID]) return;
+
+    const aiStatus = getStatus();
     if (aiStatus[threadID] === false) return;
-    if (!body) return;
 
     let waitMsgID = null;
     try {
@@ -146,14 +145,7 @@ module.exports = {
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
         if (info && info.messageID) {
-          if (!global.client) global.client = {};
-          if (!global.client.handleReply) global.client.handleReply = [];
-          global.client.handleReply.push({
-            name: "sevzia",
-            messageID: info.messageID,
-            author: senderID
-          });
-          saveReply(info.messageID, senderID);
+          saveReply(info.messageID);
         }
       }, messageID);
 
