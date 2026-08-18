@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "fca-horizon-remake": "^31.4.0",
+    "fca-horizon-remake": "latest",
     "fs-extra": "^11.1.1"
   }
 }
