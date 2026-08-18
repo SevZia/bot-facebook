@@ -12,6 +12,8 @@
     "express": "^4.22.2",
     "fca-horizon-remake": "^0.0.1-security",
     "fs-extra": "^11.1.1",
-    "gradient-string": "^3.0.0"
+    "gradient-string": "^3.0.0",
+    "tough-cookie": "^4.1.4",
+    "ws3-fca": "^3.5.2"
   }
 }
