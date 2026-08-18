@@ -15,7 +15,7 @@ function saveAfkData(data) {
 module.exports = {
   config: {
     name: "afk",
-    version: "6.0.0",
+    version: "8.0.0",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Bật chế độ AFK",
@@ -39,7 +39,8 @@ module.exports = {
       name: name,
       time: Date.now(),
       reason: reason,
-      mentions: []
+      mentions: [],
+      chatLogs: []
     };
 
     saveAfkData(afkData);
