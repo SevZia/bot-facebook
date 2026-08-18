@@ -1,5 +1,5 @@
 const fs = require('fs-extra');
-const path = path = require('path');
+const path = require('path');
 const axios = require('axios');
 
 const statusPath = path.join(__dirname, '../../sevzia_status.json');
@@ -43,7 +43,7 @@ async function callCloudflareAI(prompt, config) {
 module.exports = {
   config: {
     name: "sevzia",
-    version: "3.3.0",
+    version: "3.3.1",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Trò chuyện với Cloudflare AI",
@@ -95,8 +95,9 @@ module.exports = {
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
         if (info && info.messageID) {
+          if (!global.client) global.client = {};
           if (!global.client.handleReply) global.client.handleReply = [];
-          
+
           global.client.handleReply.push({
             name: "sevzia",
             messageID: info.messageID,
@@ -138,6 +139,7 @@ module.exports = {
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
         if (info && info.messageID) {
+          if (!global.client) global.client = {};
           if (!global.client.handleReply) global.client.handleReply = [];
 
           global.client.handleReply.push({
