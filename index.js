@@ -1,12 +1,4 @@
-// Polyfill cho undici để tránh lỗi ReferenceError: File is not defined
-if (typeof File === "undefined") {
-  global.File = class File extends Blob {};
-}
-if (typeof File === "undefined") {
-  global.File = class File extends Blob {};
-}
-
-const login = require("fca-project-orion");
+const login = require("fca-horizon-remake");
 const fs = require("fs-extra");
 const path = require("path");
 const express = require("express");
