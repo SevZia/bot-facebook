@@ -4,7 +4,7 @@ const path = require("path");
 module.exports.config = {
   name: "ôm",
   aliases: ["om", "hug"],
-  version: "1.0.0",
+  version: "1.1.1",
   hasPermssion: 0,
   credits: "BotFB",
   description: "Ôm một ai đó",
@@ -15,35 +15,33 @@ module.exports.config = {
 
 module.exports.run = async function ({ api, event }) {
   const { threadID, messageID, senderID, mentions, type, messageReply } = event;
-  let targetID = Object.keys(mentions)[0] || (type === "message_reply" ? messageReply.senderID : null);
+  const safeMsgID = "" + messageID;
 
-  if (!targetID) return api.sendMessage("⚠️ Vui lòng tag hoặc reply tin nhắn của người muốn ôm!", threadID, messageID);
+  let targetID = type === "message_reply" && messageReply ? messageReply.senderID : (mentions && Object.keys(mentions)[0]);
+
+  if (!targetID) {
+    return api.sendMessage("⚠️ Nhắm ai thì tag/reply vô, ôm cột điện hay gì?", threadID, safeMsgID);
+  }
 
   let senderName = "Bạn", targetName = "người đó";
   try {
-    const senderInfo = await api.getUserInfo(senderID);
-    const targetInfo = await api.getUserInfo(targetID);
-    senderName = senderInfo[senderID]?.name || "Bạn";
-    targetName = targetInfo[targetID]?.name || "người đó";
+    const threadInfo = await api.getThreadInfo(threadID);
+    const senderUser = threadInfo.userInfo?.find(u => String(u.id) === String(senderID));
+    const targetUser = threadInfo.userInfo?.find(u => String(u.id) === String(targetID));
+    if (senderUser && senderUser.name) senderName = senderUser.name;
+    if (targetUser && targetUser.name) targetName = targetUser.name;
   } catch (e) {}
 
   const dirPath = path.join(__dirname, "cache");
   let gifPath = path.join(dirPath, "Dogs Embracing GIF.gif");
-
-  // Tự động kiểm tra nếu file có đuôi .jpg hoặc .gif
-  if (!fs.existsSync(gifPath)) {
-    gifPath = path.join(dirPath, "Dogs Embracing GIF.jpg");
-  }
-
-  if (!fs.existsSync(gifPath)) {
-    return api.sendMessage("⚠️ Không tìm thấy file GIF 'Dogs Embracing GIF' trong thư mục cache!", threadID, messageID);
-  }
+  if (!fs.existsSync(gifPath)) gifPath = path.join(dirPath, "Dogs Embracing GIF.jpg");
+  if (!fs.existsSync(gifPath)) gifPath = path.join(dirPath, "Dogs Embracing GIF.png");
 
   const msg = {
-    body: `🤗 ${senderName} đã ôm chặt ${targetName} một cái thật ấm áp! 💕`,
-    mentions: [{ id: senderID, tag: senderName }, { id: targetID, tag: targetName }],
-    attachment: fs.createReadStream(gifPath)
+    body: `🤗 ${senderName} lao vào ôm siết lấy ${targetName} suýt gãy 3 cái xương sườn! 🦴`,
+    mentions: [{ id: senderID, tag: senderName }, { id: targetID, tag: targetName }]
   };
+  if (fs.existsSync(gifPath)) msg.attachment = fs.createReadStream(gifPath);
 
-  return api.sendMessage(msg, threadID, messageID);
+  return api.sendMessage(msg, threadID, safeMsgID);
 };

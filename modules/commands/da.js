@@ -3,8 +3,8 @@ const path = require("path");
 
 module.exports.config = {
   name: "đá",
-  aliases: ["da"],
-  version: "10.2.0",
+  aliases: ["da", "kickk"],
+  version: "1.2.2",
   hasPermssion: 0,
   credits: "BotFB",
   description: "Đá một ai đó",
@@ -15,36 +15,36 @@ module.exports.config = {
 
 module.exports.run = async function ({ api, event }) {
   const { threadID, messageID, senderID, mentions, type, messageReply } = event;
-  let targetID = Object.keys(mentions)[0] || (type === "message_reply" ? messageReply.senderID : null);
+  const safeMsgID = "" + messageID;
 
-  if (!targetID) return api.sendMessage("⚠️ Vui lòng tag hoặc reply tin nhắn của người muốn đá!", threadID, messageID);
+  let targetID = type === "message_reply" && messageReply ? messageReply.senderID : (mentions && Object.keys(mentions)[0]);
+
+  if (!targetID) {
+    return api.sendMessage("⚠️ Tag hoặc reply cái đứa bạn muốn tung cước lộn 3 vòng đi!", threadID, safeMsgID);
+  }
 
   let senderName = "Bạn", targetName = "người đó";
   try {
-    const senderInfo = await api.getUserInfo(senderID);
-    const targetInfo = await api.getUserInfo(targetID);
-    senderName = senderInfo[senderID]?.name || "Bạn";
-    targetName = targetInfo[targetID]?.name || "người đó";
+    const threadInfo = await api.getThreadInfo(threadID);
+    const senderUser = threadInfo.userInfo?.find(u => String(u.id) === String(senderID));
+    const targetUser = threadInfo.userInfo?.find(u => String(u.id) === String(targetID));
+    if (senderUser && senderUser.name) senderName = senderUser.name;
+    if (targetUser && targetUser.name) targetName = targetUser.name;
   } catch (e) {}
 
-  // Đọc file theo tên gốc của bạn (.gif hoặc .jpg)
   const dirPath = path.join(__dirname, "cache");
   let gifPath = path.join(dirPath, "Tom And Jerry Kick GIF by Studio Voisier.gif");
-
-  // Kiểm tra nếu đuôi file thực tế là .jpg thì vẫn đọc được
-  if (!fs.existsSync(gifPath)) {
-    gifPath = path.join(dirPath, "Tom And Jerry Kick GIF by Studio Voisier.jpg");
-  }
-
-  if (!fs.existsSync(gifPath)) {
-    return api.sendMessage("⚠️ Không tìm thấy file GIF trong thư mục modules/commands/cache!", threadID, messageID);
-  }
+  if (!fs.existsSync(gifPath)) gifPath = path.join(dirPath, "Tom And Jerry Kick GIF by Studio Voisier.jpg");
+  if (!fs.existsSync(gifPath)) gifPath = path.join(dirPath, "Tom And Jerry Kick GIF by Studio Voisier.png");
 
   const msg = {
-    body: ` ${senderName} đã tung cú đá vào mông ${targetName} nè!`,
-    mentions: [{ id: senderID, tag: senderName }, { id: targetID, tag: targetName }],
-    attachment: fs.createReadStream(gifPath)
+    body: `🦵 ${senderName} đã tung cú đá hoàng gia tiễn ${targetName} văng thẳng lên đọt dừa! 🚀`,
+    mentions: [{ id: senderID, tag: senderName }, { id: targetID, tag: targetName }]
   };
 
-  return api.sendMessage(msg, threadID, messageID);
+  if (fs.existsSync(gifPath)) {
+    msg.attachment = fs.createReadStream(gifPath);
+  }
+
+  return api.sendMessage(msg, threadID, safeMsgID);
 };

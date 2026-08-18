@@ -1,0 +1,11 @@
+node_modules/
+appstate.json
+config.json
+sevzia_status.json
+sevzia_replies.json
+afk_data.json
+cookieToAppState.js
+BotFacebook.rar
+Fca_Database/
+Orion_Database/
+.env

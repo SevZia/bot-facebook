@@ -9,7 +9,8 @@
   "dependencies": {
     "axios": "^1.6.8",
     "express": "^4.18.2",
-    "fca-unofficial": "*",
-    "fs-extra": "^11.1.1"
+    "fca-horizon-remake": "^0.0.1-security",
+    "fs-extra": "^11.1.1",
+    "ws3-fca": "^3.5.2"
   }
 }

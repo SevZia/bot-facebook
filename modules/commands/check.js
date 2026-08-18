@@ -4,7 +4,6 @@ const path = require("path");
 const adminConfigPath = path.join(__dirname, "admin_config.json");
 const dataPath = path.join(__dirname, "check_data.json");
 
-// Hàm lưu & đọc dữ liệu bộ đếm vĩnh viễn
 function getMessageCounts() {
   if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, "{}");
   try { return JSON.parse(fs.readFileSync(dataPath, "utf-8")); } catch (e) { return {}; }
@@ -28,63 +27,70 @@ function isAllowed(threadID, senderID) {
   }
 }
 
+// Hàm hỗ trợ kick tương thích với mọi bản ws3-fca
+function kickUser(api, userID, threadID) {
+  return new Promise((resolve, reject) => {
+    const fn = api.removeUserFromGroup || api.removeUserFromThread || api.removeUser;
+    if (typeof fn !== "function") {
+      return reject(new Error("Thư viện FCA hiện tại không hỗ trợ hàm xóa thành viên!"));
+    }
+    fn.call(api, String(userID), String(threadID), (err) => {
+      if (err) return reject(err);
+      resolve();
+    });
+  });
+}
+
 module.exports.config = {
   name: "check",
   aliases: ["count", "tt"],
-  version: "4.1.0",
+  version: "4.3.6",
   hasPermssion: 0,
   credits: "BotFB",
-  description: "Thống kê tương tác nhóm & Reply số STT để kick thành viên (Đã lưu vĩnh viễn)",
+  description: "Thống kê tương tác nhóm & Reply số STT để kick thành viên",
   commandCategory: "Quản lý nhóm",
   usages: "[all / me / reset]",
   cooldowns: 2
 };
 
-// Lưu trữ các tin nhắn thống kê đã gửi
 if (!global.checkReplyData) {
   global.checkReplyData = new Map();
 }
 
-// 1. Lắng nghe tin nhắn: Đếm tương tác & Lưu vào File JSON
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, messageReply, body } = event;
   if (!threadID || !senderID) return;
 
-  // Lấy dữ liệu từ file
   const messageCounts = getMessageCounts();
-
   if (!messageCounts[threadID]) messageCounts[threadID] = {};
   if (!messageCounts[threadID][senderID]) messageCounts[threadID][senderID] = 0;
   
-  // Cộng 1 tin nhắn và lưu lại
   messageCounts[threadID][senderID]++;
   saveMessageCounts(messageCounts);
 
-  // TỰ ĐỘNG BẮT SỰ KIỆN REPLY NẾU DỌN NICK THEO BẢNG THỐNG KÊ
-  if (messageReply && global.checkReplyData.has(messageReply.messageID) && body) {
-    const data = global.checkReplyData.get(messageReply.messageID);
-    
-    return module.exports.handleReply({
-      api,
-      event,
-      handleReply: data
-    });
+  if (messageReply && body) {
+    const replyID = String(messageReply.messageID);
+    if (global.checkReplyData.has(replyID)) {
+      const data = global.checkReplyData.get(replyID);
+      global.checkReplyData.delete(replyID);
+      return module.exports.handleReply({ api, event, handleReply: data });
+    }
   }
 };
 
-// 2. Xử lý logic Kick khi Reply STT
 module.exports.handleReply = async function ({ api, event, handleReply }) {
   const { threadID, messageID, senderID, body } = event;
+  const safeMsgID = String(messageID);
 
   if (handleReply.author !== senderID) {
-    return api.sendMessage("⚠️ Chỉ người tạo bảng thống kê mới có quyền Reply để KICK!", threadID, messageID);
+    return api.sendMessage("⚠️ Chỉ người tạo bảng thống kê mới có quyền Reply để KICK!", threadID, safeMsgID);
   }
 
-  const botID = api.getCurrentUserID();
+  const botID = String(api.getCurrentUserID());
 
   try {
     if (!isAllowed(threadID, senderID)) {
-      return api.sendMessage("❌ Bạn không có quyền sử dụng tính năng này!", threadID, messageID);
+      return api.sendMessage("❌ Bạn không có quyền sử dụng tính năng này!", threadID, safeMsgID);
     }
 
     const cleanBody = body.replace(/\//g, "").trim();
@@ -103,92 +109,89 @@ module.exports.handleReply = async function ({ api, event, handleReply }) {
       }
 
       const target = listData[index - 1];
+      const targetID = String(target.id);
 
-      if (target.id === botID) {
+      if (targetID === botID) {
         errorMsgs.push(`• STT ${index} (${target.name}): Bot không thể tự kick chính mình`);
         continue;
       }
 
       try {
-        await api.removeUserFromGroup(target.id, threadID);
+        await kickUser(api, targetID, threadID);
         kickedCount++;
       } catch (e) {
-        errorMsgs.push(`• STT ${index} (${target.name}): Lỗi kick`);
+        console.error(`[LỖI KICK]: Không thể kick UID ${targetID}`, e);
+        errorMsgs.push(`• STT ${index} (${target.name}): ${e.message || "Lỗi kick"}`);
       }
     }
 
     let replyMsg = "";
-    if (kickedCount > 0) {
-      replyMsg += `✅ Đã KICK thành công ${kickedCount} thành viên khỏi nhóm!\n`;
-    }
-    if (errorMsgs.length > 0) {
-      replyMsg += `\n⚠️ Báo lỗi:\n` + errorMsgs.join("\n");
-    }
+    if (kickedCount > 0) replyMsg += `✅ Đã KICK thành công ${kickedCount} thành viên khỏi nhóm!\n`;
+    if (errorMsgs.length > 0) replyMsg += `\n⚠️ Báo lỗi:\n` + errorMsgs.join("\n");
 
-    return api.sendMessage(replyMsg.trim(), threadID, messageID);
+    return api.sendMessage(replyMsg.trim(), threadID, safeMsgID);
 
   } catch (e) {
-    return api.sendMessage(`❌ Lỗi thực thi: ${e.message}`, threadID, messageID);
+    return api.sendMessage(`❌ Lỗi thực thi: ${e.message}`, threadID, safeMsgID);
   }
 };
 
-// 3. Lệnh chính /check
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID, mentions, type, messageReply } = event;
+  const safeMsgID = String(messageID);
 
   if (!isAllowed(threadID, senderID)) {
-    return api.sendMessage("⚠️ Nhóm hiện đang bật chế độ [Chỉ QTV dùng Bot]!", threadID, messageID);
+    return api.sendMessage("⚠️ Nhóm hiện đang bật chế độ [Chỉ QTV dùng Bot]!", threadID, safeMsgID);
   }
 
   const subCommand = args[0]?.toLowerCase();
   const messageCounts = getMessageCounts();
-
   if (!messageCounts[threadID]) messageCounts[threadID] = {};
 
-  // Lệnh Reset bộ đếm
   if (subCommand === "reset") {
     messageCounts[threadID] = {};
     saveMessageCounts(messageCounts);
-    return api.sendMessage("✅ Đã đếm lại (reset) toàn bộ số tin nhắn tương tác của nhóm về 0!", threadID, messageID);
+    return api.sendMessage("✅ Đã reset toàn bộ số tin nhắn tương tác của nhóm về 0!", threadID, safeMsgID);
   }
 
-  // Lệnh Check cá nhân (/check me hoặc tag)
-  if (subCommand === "me" || type === "message_reply" || Object.keys(mentions).length > 0) {
+  if (subCommand === "me" || type === "message_reply" || (mentions && Object.keys(mentions).length > 0)) {
     let targetID = senderID;
     if (type === "message_reply") targetID = messageReply.senderID;
-    else if (Object.keys(mentions).length > 0) targetID = Object.keys(mentions)[0];
+    else if (mentions && Object.keys(mentions).length > 0) targetID = Object.keys(mentions)[0];
 
     const userCount = messageCounts[threadID][targetID] || 0;
     const sortedList = Object.entries(messageCounts[threadID]).sort((a, b) => b[1] - a[1]);
     const rank = sortedList.findIndex(item => item[0] === targetID) + 1;
 
+    let name = "Thành viên";
     try {
-      const userInfo = await api.getUserInfo(targetID);
-      const name = userInfo[targetID]?.name || "Thành viên";
-      return api.sendMessage(
-        `📊 [ THỐNG KÊ TƯƠNG TÁC ]\n─────────────\n` +
-        `👤 Thành viên: ${name}\n` +
-        `💬 Tổng tin nhắn: ${userCount} tin\n` +
-        `🏆 Xếp hạng: #${rank > 0 ? rank : "Chưa xếp hạng"}`,
-        threadID,
-        messageID
-      );
-    } catch (e) {
-      return api.sendMessage(`💬 Tổng tin nhắn đã gửi: ${userCount} tin.`, threadID, messageID);
-    }
+      const threadInfo = await api.getThreadInfo(threadID);
+      if (threadInfo.userInfo) {
+        const u = threadInfo.userInfo.find(x => x.id === targetID);
+        if (u && u.name) name = u.name;
+      }
+    } catch (e) {}
+
+    return api.sendMessage(
+      `📊 [ THỐNG KÊ TƯƠNG TÁC ]\n─────────────\n` +
+      `👤 Thành viên: ${name}\n` +
+      `💬 Tổng tin nhắn: ${userCount} tin\n` +
+      `🏆 Xếp hạng: #${rank > 0 ? rank : "Chưa xếp hạng"}`,
+      threadID,
+      safeMsgID
+    );
   }
 
-  // Bảng thống kê toàn bộ nhóm (/check hoặc /check all)
   try {
     const threadInfo = await api.getThreadInfo(threadID);
-    const participantIDs = threadInfo.participantIDs || [];
-    const usersInfo = await api.getUserInfo(participantIDs);
+    const userInfoList = threadInfo.userInfo || [];
+    const nicknames = threadInfo.nicknames || {};
 
-    let listData = participantIDs.map(id => {
+    let listData = userInfoList.map(u => {
       return {
-        id: id,
-        name: usersInfo[id]?.name || threadInfo.nicknames?.[id] || "Thành viên Facebook",
-        count: messageCounts[threadID][id] || 0
+        id: u.id,
+        name: nicknames[u.id] || u.name || "Thành viên Facebook",
+        count: messageCounts[threadID][u.id] || 0
       };
     });
 
@@ -203,31 +206,21 @@ module.exports.run = async function ({ api, event, args }) {
       msg += `${i + 1}. ${item.name}: ${item.count} tin nhắn\n`;
     }
 
-    msg += `─────────────\n📌 Tổng số thành viên: ${participantIDs.length}\n💬 Tổng tương tác nhận diện: ${totalMessages} tin nhắn\n`;
+    msg += `─────────────\n📌 Tổng số thành viên: ${listData.length}\n💬 Tổng tương tác nhận diện: ${totalMessages} tin nhắn\n`;
     msg += `💡 Reply (trả lời) tin nhắn này kèm STT để KICK (Ví dụ: 3 hoặc 1 2 3)`;
 
-    return api.sendMessage(msg, threadID, (err, info) => {
-      if (err) return;
-
-      const replyData = {
+    const info = await api.sendMessage(msg, threadID, safeMsgID);
+    if (info && info.messageID) {
+      const outMsgID = String(info.messageID);
+      global.checkReplyData.set(outMsgID, {
         name: this.config.name,
-        messageID: info.messageID,
+        messageID: outMsgID,
         author: senderID,
         listData: listData
-      };
-
-      global.checkReplyData.set(info.messageID, replyData);
-
-      if (global.client && global.client.handleReply) {
-        if (typeof global.client.handleReply.set === "function") {
-          global.client.handleReply.set(info.messageID, replyData);
-        } else if (Array.isArray(global.client.handleReply)) {
-          global.client.handleReply.push(replyData);
-        }
-      }
-    }, messageID);
+      });
+    }
 
   } catch (e) {
-    return api.sendMessage(`❌ Lỗi thống kê: ${e.message}`, threadID, messageID);
+    return api.sendMessage(`❌ Lỗi thống kê: ${e.message}`, threadID, safeMsgID);
   }
 };
