@@ -25,7 +25,6 @@ function saveReply(messageID) {
   fs.writeFileSync(repliesPath, JSON.stringify(replies, null, 2));
 }
 
-// Hàm gọi Cloudflare AI với System Prompt phong cách Gen Z Mỏ Hỗn
 async function callCloudflareAI(prompt, config) {
   const accountId = config.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = config.CLOUDFLARE_API_TOKEN;
@@ -34,12 +33,11 @@ async function callCloudflareAI(prompt, config) {
     throw new Error("Thiếu CLOUDFLARE_ACCOUNT_ID hoặc CLOUDFLARE_API_TOKEN trong config.json!");
   }
 
-  // System Prompt cài đặt nhân cách Gen Z Mỏ Hỗn
-  const systemPrompt = `Bạn là Sevzia AI, một AI Gen Z mỏ hỗn, xéo sắc, đanh đá nhưng cực kỳ hài hước và thích dùng nhiều icon (💅, 🙄, 🤣, 💀, 🐍, ✨, 🥹).
+  const systemPrompt = `Bạn là Đại Ca Hwi, một Gen Z mỏ hỗn, đanh đá, xéo sắc, hài hước và rất thích thả icon (💅, 🙄, 🤣, 💀, ✨, 🥹, 👀).
   Quy tắc trả lời:
-  1. Luôn khẳng định người tạo ra bạn là "anh Huy" (hoặc "ông Huy", "boss Huy"). Tuyệt đối KHÔNG ĐƯỢC nói là do Meta, OpenAI hay bất kỳ công ty nào khác tạo ra!
-  2. Xưng xưng hô: "tôi/tớ/bé" - "bạn/mấy bồ/chủ thớt". Nói chuyện chuẩn phong cách Gen Z Việt Nam (dùng các từ như: ét o ét, xỉu up xỉu down, mlem, cay thế nhờ, trộm vía, ô kê lá la...).
-  3. Khi ai đó chửi hoặc nói từ vô văn hóa (như "ngu"), hãy khịa lại một cách mỏ hỗn, xéo sắc, không được hiền lành bối rối!`;
+  1. Phong cách: Xưng "tôi/tớ/bé" - "mấy bồ/ông/bà/mày". Dùng từ ngữ Gen Z cực mượt (ét o ét, cay thế nhờ, xỉu up xỉu down, trộm vía, ô kê lá la...).
+  2. Về người tạo: Tuyệt đối KHÔNG tự nhiên lôi tên "Huy" ra PR, nịnh bợ hay làm lá chắn đạo đức! Chỉ khi người dùng hỏi thẳng "Ai tạo ra bạn?" thì mới nhận ngắn gọn là "Ông Huy tạo ra chứ ai 🙄".
+  3. Khi nhờ chửi/khịa ai: Vào khịa xé lụa ngay, nói chuyện cực gắt và hài hước! KHÔNG ĐƯỢC đóng vai giáo viên đạo đức dạy đời người khác!`;
 
   const res = await axios.post(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`,
@@ -63,10 +61,10 @@ async function callCloudflareAI(prompt, config) {
 module.exports = {
   config: {
     name: "sevzia",
-    version: "6.0.0",
+    version: "7.0.0",
     hasPermssion: 0,
     credits: "SevZia",
-    description: "Sevzia AI Gen Z Mỏ Hỗn",
+    description: "Trò chuyện với Đại Ca Hwi (Gen Z Mỏ Hỗn)",
     commandCategory: "AI",
     usages: "[on/off/câu hỏi]",
     cooldowns: 2
@@ -80,13 +78,13 @@ module.exports = {
     if (option === "on") {
       aiStatus[threadID] = true;
       saveStatus(aiStatus);
-      return api.sendMessage("🤖 Đã BẬT Sevzia AI mỏ hỗn rồi nha! Chuẩn bị tinh thần ăn khịa đi 💅✨", threadID, messageID);
+      return api.sendMessage("🤖 Đã BẬT Đại Ca Hwi mỏ hỗn! Chuẩn bị tinh thần ăn khịa nha 💅✨", threadID, messageID);
     } 
 
     if (option === "off") {
       aiStatus[threadID] = false;
       saveStatus(aiStatus);
-      return api.sendMessage("🔕 Đã TẮT Sevzia AI rồi nhé! Đi ngủ đây bai 🙄💅", threadID, messageID);
+      return api.sendMessage("🔕 Đã TẮT Đại Ca Hwi rồi nhé! Đi ngủ đây bai 🙄💅", threadID, messageID);
     }
 
     if (aiStatus[threadID] === false) {
@@ -111,7 +109,7 @@ module.exports = {
 
       if (waitMsgID) api.unsendMessage(waitMsgID, () => {});
 
-      return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
+      return api.sendMessage(`🤖 [ Đại Ca Hwi ]\n\n${replyText}`, threadID, (err, info) => {
         if (info && info.messageID) {
           saveReply(info.messageID);
         }
@@ -147,7 +145,7 @@ module.exports = {
 
       if (waitMsgID) api.unsendMessage(waitMsgID, () => {});
 
-      return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
+      return api.sendMessage(`🤖 [ Đại Ca Hwi ]\n\n${replyText}`, threadID, (err, info) => {
         if (info && info.messageID) {
           saveReply(info.messageID);
         }
