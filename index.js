@@ -2,6 +2,9 @@
 if (typeof File === "undefined") {
   global.File = class File extends Blob {};
 }
+if (typeof File === "undefined") {
+  global.File = class File extends Blob {};
+}
 
 const login = require("fca-project-orion");
 const fs = require("fs-extra");
