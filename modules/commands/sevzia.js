@@ -3,6 +3,7 @@ const path = require('path');
 const axios = require('axios');
 
 const statusPath = path.join(__dirname, '../../sevzia_status.json');
+const repliesPath = path.join(__dirname, '../../sevzia_replies.json');
 
 function getStatus() {
   if (!fs.existsSync(statusPath)) fs.writeFileSync(statusPath, '{}');
@@ -11,6 +12,17 @@ function getStatus() {
 
 function saveStatus(data) {
   fs.writeFileSync(statusPath, JSON.stringify(data, null, 2));
+}
+
+function getReplies() {
+  if (!fs.existsSync(repliesPath)) fs.writeFileSync(repliesPath, '{}');
+  try { return JSON.parse(fs.readFileSync(repliesPath, 'utf-8')); } catch (e) { return {}; }
+}
+
+function saveReply(messageID, authorID) {
+  const replies = getReplies();
+  replies[messageID] = authorID;
+  fs.writeFileSync(repliesPath, JSON.stringify(replies, null, 2));
 }
 
 async function callCloudflareAI(prompt, config) {
@@ -43,7 +55,7 @@ async function callCloudflareAI(prompt, config) {
 module.exports = {
   config: {
     name: "sevzia",
-    version: "3.3.1",
+    version: "4.0.0",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Trò chuyện với Cloudflare AI",
@@ -89,33 +101,30 @@ module.exports = {
     try {
       const replyText = await callCloudflareAI(prompt, config);
 
-      if (waitMsgID) {
-        api.unsendMessage(waitMsgID, () => {});
-      }
+      if (waitMsgID) api.unsendMessage(waitMsgID, () => {});
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
         if (info && info.messageID) {
+          // Lưu vào mảng tạm của RAM
           if (!global.client) global.client = {};
           if (!global.client.handleReply) global.client.handleReply = [];
-
           global.client.handleReply.push({
             name: "sevzia",
             messageID: info.messageID,
             author: senderID
           });
+          // Lưu cố định vào file json
+          saveReply(info.messageID, senderID);
         }
       }, messageID);
 
     } catch (error) {
-      console.error("Lỗi Cloudflare AI:", error.message);
-      if (waitMsgID) {
-        api.unsendMessage(waitMsgID, () => {});
-      }
+      if (waitMsgID) api.unsendMessage(waitMsgID, () => {});
       return api.sendMessage(`❌ Lỗi kết nối Cloudflare AI: ${error.message}`, threadID, messageID);
     }
   },
 
-  handleReply: async function ({ api, event, handleReply, config }) {
+  handleReply: async function ({ api, event, config }) {
     const { threadID, messageID, body, senderID } = event;
     const aiStatus = getStatus();
 
@@ -133,28 +142,23 @@ module.exports = {
     try {
       const replyText = await callCloudflareAI(body, config);
 
-      if (waitMsgID) {
-        api.unsendMessage(waitMsgID, () => {});
-      }
+      if (waitMsgID) api.unsendMessage(waitMsgID, () => {});
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
         if (info && info.messageID) {
           if (!global.client) global.client = {};
           if (!global.client.handleReply) global.client.handleReply = [];
-
           global.client.handleReply.push({
             name: "sevzia",
             messageID: info.messageID,
             author: senderID
           });
+          saveReply(info.messageID, senderID);
         }
       }, messageID);
 
     } catch (error) {
-      console.error("Lỗi Reply Sevzia AI:", error.message);
-      if (waitMsgID) {
-        api.unsendMessage(waitMsgID, () => {});
-      }
+      if (waitMsgID) api.unsendMessage(waitMsgID, () => {});
       return api.sendMessage(`❌ Lỗi Cloudflare AI: ${error.message}`, threadID, messageID);
     }
   }
