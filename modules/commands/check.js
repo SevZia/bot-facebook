@@ -2,6 +2,17 @@ const fs = require("fs");
 const path = require("path");
 
 const adminConfigPath = path.join(__dirname, "admin_config.json");
+const dataPath = path.join(__dirname, "check_data.json");
+
+// Hàm lưu & đọc dữ liệu bộ đếm vĩnh viễn
+function getMessageCounts() {
+  if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, "{}");
+  try { return JSON.parse(fs.readFileSync(dataPath, "utf-8")); } catch (e) { return {}; }
+}
+
+function saveMessageCounts(data) {
+  try { fs.writeFileSync(dataPath, JSON.stringify(data, null, 2)); } catch (e) {}
+}
 
 function isAllowed(threadID, senderID) {
   if (!fs.existsSync(adminConfigPath)) return true;
@@ -20,37 +31,39 @@ function isAllowed(threadID, senderID) {
 module.exports.config = {
   name: "check",
   aliases: ["count", "tt"],
-  version: "4.0.0",
+  version: "4.1.0",
   hasPermssion: 0,
   credits: "BotFB",
-  description: "Thống kê tương tác nhóm & Reply số STT để kick thành viên",
+  description: "Thống kê tương tác nhóm & Reply số STT để kick thành viên (Đã lưu vĩnh viễn)",
   commandCategory: "Quản lý nhóm",
   usages: "[all / me / reset]",
   cooldowns: 2
 };
-
-const messageCounts = {};
 
 // Lưu trữ các tin nhắn thống kê đã gửi
 if (!global.checkReplyData) {
   global.checkReplyData = new Map();
 }
 
-// 1. Lắng nghe tin nhắn: Đếm tương tác & Tự xử lý Reply nếu hệ thống bỏ sót
+// 1. Lắng nghe tin nhắn: Đếm tương tác & Lưu vào File JSON
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, messageReply, body } = event;
   if (!threadID || !senderID) return;
 
-  // Đếm số tin nhắn
+  // Lấy dữ liệu từ file
+  const messageCounts = getMessageCounts();
+
   if (!messageCounts[threadID]) messageCounts[threadID] = {};
   if (!messageCounts[threadID][senderID]) messageCounts[threadID][senderID] = 0;
+  
+  // Cộng 1 tin nhắn và lưu lại
   messageCounts[threadID][senderID]++;
+  saveMessageCounts(messageCounts);
 
   // TỰ ĐỘNG BẮT SỰ KIỆN REPLY NẾU DỌN NICK THEO BẢNG THỐNG KÊ
   if (messageReply && global.checkReplyData.has(messageReply.messageID) && body) {
     const data = global.checkReplyData.get(messageReply.messageID);
     
-    // Gọi trực tiếp hàm handleReply
     return module.exports.handleReply({
       api,
       event,
@@ -63,7 +76,6 @@ module.exports.handleEvent = async function ({ api, event }) {
 module.exports.handleReply = async function ({ api, event, handleReply }) {
   const { threadID, messageID, senderID, body } = event;
 
-  // Kiểm tra người reply phải là người gọi lệnh
   if (handleReply.author !== senderID) {
     return api.sendMessage("⚠️ Chỉ người tạo bảng thống kê mới có quyền Reply để KICK!", threadID, messageID);
   }
@@ -75,7 +87,6 @@ module.exports.handleReply = async function ({ api, event, handleReply }) {
       return api.sendMessage("❌ Bạn không có quyền sử dụng tính năng này!", threadID, messageID);
     }
 
-    // Tách lấy STT (VD: 3, /3, 1 2 3, 1,2,3)
     const cleanBody = body.replace(/\//g, "").trim();
     const indexes = cleanBody.split(/[\s,]+/).map(item => parseInt(item)).filter(item => !isNaN(item));
 
@@ -130,14 +141,18 @@ module.exports.run = async function ({ api, event, args }) {
   }
 
   const subCommand = args[0]?.toLowerCase();
+  const messageCounts = getMessageCounts();
 
   if (!messageCounts[threadID]) messageCounts[threadID] = {};
 
+  // Lệnh Reset bộ đếm
   if (subCommand === "reset") {
     messageCounts[threadID] = {};
-    return api.sendMessage("✅ Đã đếm lại số tin nhắn tương tác của nhóm!", threadID, messageID);
+    saveMessageCounts(messageCounts);
+    return api.sendMessage("✅ Đã đếm lại (reset) toàn bộ số tin nhắn tương tác của nhóm về 0!", threadID, messageID);
   }
 
+  // Lệnh Check cá nhân (/check me hoặc tag)
   if (subCommand === "me" || type === "message_reply" || Object.keys(mentions).length > 0) {
     let targetID = senderID;
     if (type === "message_reply") targetID = messageReply.senderID;
@@ -163,6 +178,7 @@ module.exports.run = async function ({ api, event, args }) {
     }
   }
 
+  // Bảng thống kê toàn bộ nhóm (/check hoặc /check all)
   try {
     const threadInfo = await api.getThreadInfo(threadID);
     const participantIDs = threadInfo.participantIDs || [];
@@ -200,10 +216,8 @@ module.exports.run = async function ({ api, event, args }) {
         listData: listData
       };
 
-      // Tự lưu vào Bộ nhớ riêng để handleEvent tự bắt
       global.checkReplyData.set(info.messageID, replyData);
 
-      // Lưu vào hệ thống mặc định của Bot
       if (global.client && global.client.handleReply) {
         if (typeof global.client.handleReply.set === "function") {
           global.client.handleReply.set(info.messageID, replyData);
