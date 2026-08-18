@@ -43,7 +43,7 @@ async function callCloudflareAI(prompt, config) {
 module.exports = {
   config: {
     name: "sevzia",
-    version: "3.1.0",
+    version: "3.2.0",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Trò chuyện với Cloudflare AI",
@@ -78,27 +78,28 @@ module.exports = {
       return api.sendMessage("Dùng: /sevzia on (bật), /sevzia off (tắt) hoặc /sevzia [câu hỏi]", threadID, messageID);
     }
 
-    let waitMsg = null;
+    let waitMsgID = null;
     try {
-      waitMsg = await new Promise((resolve) => {
+      const waitInfo = await new Promise((resolve) => {
         api.sendMessage("🔍 Sevzia đang suy nghĩ...", threadID, (err, info) => resolve(info), messageID);
       });
+      if (waitInfo && waitInfo.messageID) waitMsgID = waitInfo.messageID;
     } catch (e) {}
 
     try {
       const replyText = await callCloudflareAI(prompt, config);
 
-      if (waitMsg && waitMsg.messageID) {
-        api.unsendMessage(waitMsg.messageID);
+      if (waitMsgID) {
+        api.unsendMessage(waitMsgID, () => {});
       }
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
-        if (info) {
+        if (info && info.messageID) {
           if (!global.client) global.client = {};
           if (!global.client.handleReply) global.client.handleReply = [];
-          
+
           global.client.handleReply.push({
-            name: this.config.name,
+            name: "sevzia",
             messageID: info.messageID,
             author: senderID
           });
@@ -107,8 +108,8 @@ module.exports = {
 
     } catch (error) {
       console.error("Lỗi Cloudflare AI:", error.message);
-      if (waitMsg && waitMsg.messageID) {
-        api.unsendMessage(waitMsg.messageID);
+      if (waitMsgID) {
+        api.unsendMessage(waitMsgID, () => {});
       }
       return api.sendMessage(`❌ Lỗi kết nối Cloudflare AI: ${error.message}`, threadID, messageID);
     }
@@ -121,27 +122,28 @@ module.exports = {
     if (aiStatus[threadID] === false) return;
     if (!body) return;
 
-    let waitMsg = null;
+    let waitMsgID = null;
     try {
-      waitMsg = await new Promise((resolve) => {
+      const waitInfo = await new Promise((resolve) => {
         api.sendMessage("🔍 Sevzia đang suy nghĩ...", threadID, (err, info) => resolve(info), messageID);
       });
+      if (waitInfo && waitInfo.messageID) waitMsgID = waitInfo.messageID;
     } catch (e) {}
 
     try {
       const replyText = await callCloudflareAI(body, config);
 
-      if (waitMsg && waitMsg.messageID) {
-        api.unsendMessage(waitMsg.messageID);
+      if (waitMsgID) {
+        api.unsendMessage(waitMsgID, () => {});
       }
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
-        if (info) {
+        if (info && info.messageID) {
           if (!global.client) global.client = {};
           if (!global.client.handleReply) global.client.handleReply = [];
 
           global.client.handleReply.push({
-            name: this.config.name,
+            name: "sevzia",
             messageID: info.messageID,
             author: senderID
           });
@@ -150,8 +152,8 @@ module.exports = {
 
     } catch (error) {
       console.error("Lỗi Reply Sevzia AI:", error.message);
-      if (waitMsg && waitMsg.messageID) {
-        api.unsendMessage(waitMsg.messageID);
+      if (waitMsgID) {
+        api.unsendMessage(waitMsgID, () => {});
       }
       return api.sendMessage(`❌ Lỗi Cloudflare AI: ${error.message}`, threadID, messageID);
     }
