@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "postinstall": "rm -rf node_modules/@dongdev/fca-unofficial/node_modules/gradient-string && npm rebuild sqlite3"
+  },
   "overrides": {
     "gradient-string": "2.0.2"
   },
