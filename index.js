@@ -3,6 +3,9 @@ const fs = require("fs-extra");
 const path = require("path");
 const express = require("express");
 
+// User-Agent chuẩn trình duyệt Windows để tránh bị Facebook chặn IP máy chủ Render
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
+
 // Khởi tạo Web Server giữ Render luôn Live
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,7 +43,7 @@ let appState;
 try {
   const rawState = JSON.parse(fs.readFileSync(appStatePath, "utf-8"));
   
-  // Tự động chuẩn hóa domain và key cookie cho fca-unofficial
+  // Tự động chuẩn hóa key và ép domain về facebook.com để tránh lỗi CookieJar/MQTT
   appState = rawState.map(item => ({
     ...item,
     key: item.key || item.name,
@@ -88,7 +91,19 @@ if (fs.existsSync(cmdDirPath)) {
   console.error("❌ Không tìm thấy thư mục modules/commands!");
 }
 
-login({ appState }, { forceLogin: true, listenEvents: true, logLevel: "silent" }, (err, api) => {
+// Tùy chọn đăng nhập
+const loginOptions = {
+  appState: appState
+};
+
+const fcaOptions = {
+  forceLogin: true,
+  listenEvents: true,
+  logLevel: "silent",
+  userAgent: USER_AGENT
+};
+
+login(loginOptions, fcaOptions, (err, api) => {
   if (err) return console.error("❌ Lỗi đăng nhập Facebook:", err);
 
   api.setOptions({
@@ -96,13 +111,17 @@ login({ appState }, { forceLogin: true, listenEvents: true, logLevel: "silent" }
     selfListen: false,
     listenTyping: false,
     updatePresence: false,
-    forceLogin: true
+    forceLogin: true,
+    userAgent: USER_AGENT
   });
 
   console.log(`[ HỆ THỐNG ] Bot [${config.BOTNAME || "FB"}] đã sẵn sàng hoạt động!\n`);
 
   api.listenMqtt(async (err, event) => {
-    if (err) return console.error("Lỗi MQTT:", err);
+    if (err) {
+      console.error("Lỗi MQTT:", err);
+      return;
+    }
 
     for (const handler of eventHandlers) {
       try {
