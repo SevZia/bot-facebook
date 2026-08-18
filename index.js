@@ -1,7 +1,21 @@
+const express = require("express");
 const { login } = require("ws3-fca");
 const fs = require("fs-extra");
 const path = require("path");
 
+// --- TẠO WEB SERVER ĐỂ RENDER BIND PORT (TRÁNH BỊ TREO DEPLOY) ---
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.send("Bot Facebook đang chạy ngon lành!");
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 Server HTTP đang lắng nghe trên cổng ${PORT}`);
+});
+
+// --- CODE CHẠY BOT FACEBOOK ---
 let appState;
 
 // 1. Ưu tiên đọc từ biến môi trường APPSTATE của Render
