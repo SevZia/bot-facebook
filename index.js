@@ -1,56 +1,41 @@
-const login = require("fca-horizon-remastered");
+const login = require("fca-unofficial");
 const fs = require("fs-extra");
 const path = require("path");
 const express = require("express");
 
-// User-Agent chuẩn trình duyệt Windows để tránh bị Facebook chặn IP máy chủ Render
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
-
-// Khởi tạo Web Server giữ Render luôn Live
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("Bot Facebook đang hoạt động mượt mà!");
+  res.send("Bot Facebook đang hoạt động!");
 });
 
 app.listen(PORT, () => {
   console.log(`[ SERVER ] Web server đang lắng nghe tại cổng ${PORT}`);
 });
 
-// Đọc Config an toàn
 let config = { PREFIX: "/", BOTNAME: "Bot FB" };
 try {
   if (fs.existsSync("./config.json")) {
     config = JSON.parse(fs.readFileSync("./config.json", "utf-8"));
   }
-} catch (e) {
-  console.error("⚠️ Không đọc được config.json, dùng config mặc định.");
-}
+} catch (e) {}
 
-// Tìm file AppState
 let appStatePath = "./appstate.json";
 if (!fs.existsSync(appStatePath) && fs.existsSync("./appState.json")) {
   appStatePath = "./appState.json";
 }
 
 if (!fs.existsSync(appStatePath)) {
-  console.error(`❌ LỖI CHÍ MẠNG: Không tìm thấy file cookie (${appStatePath})! Vui lòng đẩy file appstate.json lên GitHub.`);
+  console.error(`❌ LỖI: Không tìm thấy file appstate.json!`);
   process.exit(1);
 }
 
 let appState;
 try {
-  const rawState = JSON.parse(fs.readFileSync(appStatePath, "utf-8"));
-  
-  // Tự động chuẩn hóa key và ép domain về facebook.com để tránh lỗi CookieJar/MQTT
-  appState = rawState.map(item => ({
-    ...item,
-    key: item.key || item.name,
-    domain: "facebook.com"
-  }));
+  appState = JSON.parse(fs.readFileSync(appStatePath, "utf-8"));
 } catch (e) {
-  console.error("❌ LỖI: File appstate.json bị hỏng hoặc không đúng định dạng JSON!");
+  console.error("❌ LỖI: File appstate.json bị hỏng!");
   process.exit(1);
 }
 
@@ -58,7 +43,6 @@ const commands = new Map();
 const aliases = new Map();
 const eventHandlers = [];
 
-// Quét toàn bộ file lệnh trong modules/commands
 const cmdDirPath = path.join(__dirname, "modules", "commands");
 
 if (fs.existsSync(cmdDirPath)) {
@@ -87,23 +71,9 @@ if (fs.existsSync(cmdDirPath)) {
     }
   }
   console.log(`\n[ HỆ THỐNG ] Đã nạp thành công ${commands.size} lệnh và ${aliases.size} tên viết tắt!`);
-} else {
-  console.error("❌ Không tìm thấy thư mục modules/commands!");
 }
 
-// Tùy chọn đăng nhập
-const loginOptions = {
-  appState: appState
-};
-
-const fcaOptions = {
-  forceLogin: true,
-  listenEvents: true,
-  logLevel: "silent",
-  userAgent: USER_AGENT
-};
-
-login(loginOptions, fcaOptions, (err, api) => {
+login({ appState }, { forceLogin: true, listenEvents: true, logLevel: "silent" }, (err, api) => {
   if (err) return console.error("❌ Lỗi đăng nhập Facebook:", err);
 
   api.setOptions({
@@ -111,17 +81,13 @@ login(loginOptions, fcaOptions, (err, api) => {
     selfListen: false,
     listenTyping: false,
     updatePresence: false,
-    forceLogin: true,
-    userAgent: USER_AGENT
+    forceLogin: true
   });
 
   console.log(`[ HỆ THỐNG ] Bot [${config.BOTNAME || "FB"}] đã sẵn sàng hoạt động!\n`);
 
   api.listenMqtt(async (err, event) => {
-    if (err) {
-      console.error("Lỗi MQTT:", err);
-      return;
-    }
+    if (err) return console.error("Lỗi MQTT:", err);
 
     for (const handler of eventHandlers) {
       try {
