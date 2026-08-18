@@ -1,6 +1,19 @@
 const login = require("@dongdev/fca-unofficial");
 const fs = require("fs-extra");
 const path = require("path");
+const express = require("express");
+
+// Khởi tạo Web Server để giữ Render luôn Live
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.send("Bot Facebook đang hoạt động mượt mà!");
+});
+
+app.listen(PORT, () => {
+  console.log(`[ SERVER ] Web server đang lắng nghe tại cổng ${PORT}`);
+});
 
 const config = JSON.parse(fs.readFileSync("./config.json", "utf-8"));
 let appState = JSON.parse(fs.readFileSync("./appstate.json", "utf-8"));
