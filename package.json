@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@dongdev/fca-unofficial": "^4.0.3",
+    "axios": "^1.19.0",
+    "fca-disme": "^0.0.1-security",
+    "fca-horizon-remake": "^0.0.1-security",
+    "fca-project-orion": "^1.1.22",
+    "fca-unofficial": "^1.3.10",
+    "fs-extra": "^11.4.0",
+    "path": "^0.12.7"
+  }
+}
