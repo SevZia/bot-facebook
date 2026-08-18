@@ -13,7 +13,6 @@ function saveStatus(data) {
   fs.writeFileSync(statusPath, JSON.stringify(data, null, 2));
 }
 
-// Hàm gọi Cloudflare Workers AI chung
 async function callCloudflareAI(prompt, config) {
   const accountId = config.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = config.CLOUDFLARE_API_TOKEN;
@@ -44,18 +43,17 @@ async function callCloudflareAI(prompt, config) {
 module.exports = {
   config: {
     name: "sevzia",
-    version: "3.0.0",
+    version: "3.1.0",
     hasPermssion: 0,
     credits: "SevZia",
-    description: "Trò chuyện với Cloudflare AI (Hỗ trợ Reply)",
+    description: "Trò chuyện với Cloudflare AI",
     commandCategory: "AI",
     usages: "[on/off/câu hỏi]",
     cooldowns: 2
   },
 
-  // 1. Xử lý khi gõ lệnh /sevzia
   run: async function ({ api, event, args, config }) {
-    const { threadID, messageID } = event;
+    const { threadID, messageID, senderID } = event;
     const option = args[0] ? args[0].toLowerCase() : "";
     const aiStatus = getStatus();
 
@@ -96,10 +94,13 @@ module.exports = {
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
         if (info) {
+          if (!global.client) global.client = {};
+          if (!global.client.handleReply) global.client.handleReply = [];
+          
           global.client.handleReply.push({
             name: this.config.name,
             messageID: info.messageID,
-            author: event.senderID
+            author: senderID
           });
         }
       }, messageID);
@@ -113,9 +114,8 @@ module.exports = {
     }
   },
 
-  // 2. Xử lý khi Reply tin nhắn của Bot
   handleReply: async function ({ api, event, handleReply, config }) {
-    const { threadID, messageID, body } = event;
+    const { threadID, messageID, body, senderID } = event;
     const aiStatus = getStatus();
 
     if (aiStatus[threadID] === false) return;
@@ -137,10 +137,13 @@ module.exports = {
 
       return api.sendMessage(`🤖 [ Sevzia AI ]\n\n${replyText}`, threadID, (err, info) => {
         if (info) {
+          if (!global.client) global.client = {};
+          if (!global.client.handleReply) global.client.handleReply = [];
+
           global.client.handleReply.push({
             name: this.config.name,
             messageID: info.messageID,
-            author: event.senderID
+            author: senderID
           });
         }
       }, messageID);
