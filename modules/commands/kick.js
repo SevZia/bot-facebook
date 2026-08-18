@@ -1,7 +1,7 @@
 module.exports.config = {
   name: "kick",
   aliases: ["out", "remove"],
-  version: "1.0.7",
+  version: "1.0.8",
   hasPermssion: 0,
   credits: "BotFB",
   description: "Xóa thành viên khỏi nhóm qua Tag, Reply hoặc Tên",
@@ -15,15 +15,15 @@ module.exports.run = async function ({ api, event, args }) {
   const safeMsgID = String(messageID);
   let targetIDs = [];
 
-  // 1. Nếu Reply tin nhắn
+  // 1. Reply tin nhắn
   if (type === "message_reply" && messageReply) {
     targetIDs.push(String(messageReply.senderID));
   } 
-  // 2. Nếu có Tag chuẩn (Mentions)
+  // 2. Mentions/Tag
   else if (mentions && Object.keys(mentions).length > 0) {
     targetIDs = Object.keys(mentions).map(id => String(id));
   } 
-  // 3. Nếu gõ tên trực tiếp (Tự tìm ID theo tên)
+  // 3. Nhập tên
   else if (args.length > 0) {
     const inputName = args.join(" ").replace(/@/g, "").toLowerCase().trim();
     try {
@@ -49,11 +49,6 @@ module.exports.run = async function ({ api, event, args }) {
   }
 
   const botID = String(api.getCurrentUserID());
-  const removeFn = api.removeUserFromGroup || api.removeUserFromThread || api.removeUser;
-
-  if (typeof removeFn !== "function") {
-    return api.sendMessage("❌ Thư viện FCA chưa hỗ trợ hàm kick!", threadID, safeMsgID);
-  }
 
   try {
     const threadInfo = await api.getThreadInfo(threadID);
@@ -70,7 +65,7 @@ module.exports.run = async function ({ api, event, args }) {
       if (id === botID) continue;
 
       await new Promise((resolve) => {
-        removeFn.call(api, id, String(threadID), (err) => {
+        api.removeUserFromGroup(id, String(threadID), (err) => {
           if (err) {
             console.error(`[LỖI KICK] UID ${id}:`, err);
             failCount++;

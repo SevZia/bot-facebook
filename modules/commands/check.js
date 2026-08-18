@@ -27,14 +27,9 @@ function isAllowed(threadID, senderID) {
   }
 }
 
-// Hàm hỗ trợ kick tương thích với mọi bản ws3-fca
 function kickUser(api, userID, threadID) {
   return new Promise((resolve, reject) => {
-    const fn = api.removeUserFromGroup || api.removeUserFromThread || api.removeUser;
-    if (typeof fn !== "function") {
-      return reject(new Error("Thư viện FCA hiện tại không hỗ trợ hàm xóa thành viên!"));
-    }
-    fn.call(api, String(userID), String(threadID), (err) => {
+    api.removeUserFromGroup(String(userID), String(threadID), (err) => {
       if (err) return reject(err);
       resolve();
     });
@@ -44,7 +39,7 @@ function kickUser(api, userID, threadID) {
 module.exports.config = {
   name: "check",
   aliases: ["count", "tt"],
-  version: "4.3.6",
+  version: "4.3.7",
   hasPermssion: 0,
   credits: "BotFB",
   description: "Thống kê tương tác nhóm & Reply số STT để kick thành viên",
@@ -120,8 +115,7 @@ module.exports.handleReply = async function ({ api, event, handleReply }) {
         await kickUser(api, targetID, threadID);
         kickedCount++;
       } catch (e) {
-        console.error(`[LỖI KICK]: Không thể kick UID ${targetID}`, e);
-        errorMsgs.push(`• STT ${index} (${target.name}): ${e.message || "Lỗi kick"}`);
+        errorMsgs.push(`• STT ${index} (${target.name}): Lỗi FB chặn hoặc thiếu quyền QTV`);
       }
     }
 
