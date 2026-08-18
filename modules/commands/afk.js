@@ -43,7 +43,7 @@ async function summarizeChat(chatLogs, config) {
 module.exports = {
   config: {
     name: "afk",
-    version: "15.0.0",
+    version: "15.0.1",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Bật AFK, báo lý do khi bị tag và tóm tắt bằng AI khi online",
@@ -58,7 +58,7 @@ module.exports = {
     const reason = args.join(" ") || "Không có lý do";
     const afkData = getAfkData();
 
-    let name = "Huy";
+    let name = "Thành viên";
     try {
       const userInfo = await api.getUserInfo(senderID);
       if (userInfo && userInfo[senderID]) name = userInfo[senderID].name;
@@ -82,49 +82,74 @@ module.exports = {
     const { senderID, threadID, messageID, mentions, body } = event;
     if (!threadID || !body) return;
 
-    // Bỏ qua các tin nhắn là câu lệnh (bắt đầu bằng / hoặc !)
+    // Bỏ qua các tin nhắn là câu lệnh
     if (body.startsWith("/") || body.startsWith("!")) return;
 
     const afkData = getAfkData();
 
-    // A. KIỂM TRA TIN NHẮN CÓ CHỨA CÂU TAG / TÊN CỦA BẤT KỲ AI ĐANG AFK
+    // A. NẾU CHÍNH NGƯỜI BẬT AFK NHẮN TIN TRỞ LẠI -> TẮT AFK & GỬI BÁO CÁO
+    if (afkData[senderID] && afkData[senderID].threadID === threadID) {
+      // Bỏ qua nếu vừa bật AFK chưa quá 3 giây (tránh trùng lặp khi vừa gõ /afk)
+      if (Date.now() - afkData[senderID].time > 3000) {
+        const userAfk = afkData[senderID];
+        delete afkData[senderID];
+        saveAfkData(afkData);
+
+        const timeAfk = Math.floor((Date.now() - userAfk.time) / 1000);
+        const minutes = Math.floor(timeAfk / 60);
+        const seconds = timeAfk % 60;
+        const timeStr = minutes > 0 ? `${minutes} phút ${seconds} giây` : `${seconds} giây`;
+
+        let replyMsg = `👋 Chào mừng bạn quay lại!\n⏱️ Thời gian AFK: ${timeStr}\n📝 Lý do: ${userAfk.reason}\n\n`;
+
+        if (userAfk.mentions && userAfk.mentions.length > 0) {
+          replyMsg += `📌 Danh sách ${userAfk.mentions.length} tin nhắn tag bạn khi vắng mặt:\n`;
+          userAfk.mentions.forEach((item, index) => {
+            replyMsg += `${index + 1}. 👤 ${item.authorName}: "${item.content}"\n`;
+          });
+        } else {
+          replyMsg += `✨ Không có ai tag bạn trong lúc vắng mặt.\n`;
+        }
+
+        if (!userAfk.chatLogs || userAfk.chatLogs.length === 0) {
+          replyMsg += `\n📝 [ Tóm tắt cuộc trò chuyện ]:\nKhông có cuộc trò chuyện nào trong lúc vắng mặt.`;
+          return api.sendMessage(replyMsg, threadID, messageID);
+        }
+
+        api.sendMessage("🔍 Đang tóm tắt lại cuộc trò chuyện...", threadID, async (err, info) => {
+          const summary = await summarizeChat(userAfk.chatLogs, config);
+          if (info && info.messageID) api.unsendMessage(info.messageID, () => {});
+
+          replyMsg += `\n📝 [ Tóm tắt cuộc trò chuyện ]:\n${summary}`;
+          return api.sendMessage(replyMsg, threadID, messageID);
+        });
+        return; // Dừng xử lý tiếp cho người này
+      }
+    }
+
+    // B. KIỂM TRA XEM TIN NHẮN CÓ TAG AI ĐANG AFK KHÔNG
     for (const [afkUID, userAfk] of Object.entries(afkData)) {
-      if (userAfk.threadID !== threadID) continue;
+      if (userAfk.threadID !== threadID || afkUID === senderID) continue;
 
       let isTagged = false;
 
-      // Check 1: Mention xanh FB
-      if (mentions && Object.keys(mentions).length > 0 && mentions[afkUID]) {
+      // Kiểm tra Mention xanh của Facebook
+      if (mentions && mentions[afkUID]) {
         isTagged = true;
       }
 
-      // Check 2: Chữ viết chứa tên ("huy", "anh huy", "@anh huy", "@alo",...)
-      const lowerBody = body.toLowerCase();
-      if (!isTagged) {
-        if (
-          lowerBody.includes("huy") || 
-          lowerBody.includes("@alo") ||
-          (userAfk.name && lowerBody.includes(userAfk.name.toLowerCase()))
-        ) {
-          isTagged = true;
-        }
-      }
-
-      // NẾU PHÁT HIỆN CÓ CÂU TAG (Dù là người khác tag hay chính chủ tự tag)
       if (isTagged) {
-        let authorName = senderID === afkUID ? "Chính bạn" : "Thành viên";
-        if (senderID !== afkUID) {
-          try {
-            const userInfo = await api.getUserInfo(senderID);
-            if (userInfo && userInfo[senderID]) authorName = userInfo[senderID].name;
-          } catch (e) {}
-        }
+        let authorName = "Thành viên";
+        try {
+          const userInfo = await api.getUserInfo(senderID);
+          if (userInfo && userInfo[senderID]) authorName = userInfo[senderID].name;
+        } catch (e) {}
 
         userAfk.mentions.push({ authorID: senderID, authorName: authorName, content: body });
         saveAfkData(afkData);
 
-        // Trả lời phản hồi báo lý do AFK lập tức
-        return api.sendMessage(`⚠️ ${userAfk.name} hiện đang AFK!\n📝 Lý do: ${userAfk.reason}`, threadID, messageID);
+        // Trả lời báo AFK
+        api.sendMessage(`⚠️ ${userAfk.name} hiện đang AFK!\n📝 Lý do: ${userAfk.reason}`, threadID, messageID);
       } else {
         // Lưu lại tin nhắn nhóm để AI tóm tắt
         let authorName = "Thành viên";
@@ -132,48 +157,10 @@ module.exports = {
           const userInfo = await api.getUserInfo(senderID);
           if (userInfo && userInfo[senderID]) authorName = userInfo[senderID].name;
         } catch (e) {}
+
         userAfk.chatLogs.push(`${authorName}: ${body}`);
         saveAfkData(afkData);
       }
-    }
-
-    // B. NẾU CHÍNH NGƯỜI BẬT AFK NHẮN CÂU NÓI BÌNH THƯỜNG (Ví dụ: "Uh") -> TẮT AFK & GỬI BÁO CÁO
-    if (afkData[senderID] && afkData[senderID].threadID === threadID) {
-      // Tránh tự kích hoạt tắt ngay khi vừa bật AFK (chờ ít nhất 2 giây)
-      if (Date.now() - afkData[senderID].time < 2000) return;
-
-      const userAfk = afkData[senderID];
-      delete afkData[senderID];
-      saveAfkData(afkData);
-
-      const timeAfk = Math.floor((Date.now() - userAfk.time) / 1000);
-      const minutes = Math.floor(timeAfk / 60);
-      const seconds = timeAfk % 60;
-      const timeStr = minutes > 0 ? `${minutes} phút ${seconds} giây` : `${seconds} giây`;
-
-      let replyMsg = `👋 Chào mừng bạn quay lại!\n⏱️ Thời gian AFK: ${timeStr}\n📝 Lý do: ${userAfk.reason}\n\n`;
-
-      if (userAfk.mentions && userAfk.mentions.length > 0) {
-        replyMsg += `📌 Danh sách ${userAfk.mentions.length} tin nhắn tag bạn khi vắng mặt:\n`;
-        userAfk.mentions.forEach((item, index) => {
-          replyMsg += `${index + 1}. 👤 ${item.authorName}: "${item.content}"\n`;
-        });
-      } else {
-        replyMsg += `✨ Không có ai tag bạn trong lúc vắng mặt.\n`;
-      }
-
-      if (!userAfk.chatLogs || userAfk.chatLogs.length === 0) {
-        replyMsg += `\n📝 [ Tóm tắt cuộc trò chuyện ]:\nKhông có cuộc trò chuyện nào trong lúc vắng mặt.`;
-        return api.sendMessage(replyMsg, threadID, messageID);
-      }
-
-      api.sendMessage("🔍 Đang tóm tắt lại cuộc trò chuyện...", threadID, async (err, info) => {
-        const summary = await summarizeChat(userAfk.chatLogs, config);
-        if (info && info.messageID) api.unsendMessage(info.messageID, () => {});
-
-        replyMsg += `\n📝 [ Tóm tắt cuộc trò chuyện ]:\n${summary}`;
-        return api.sendMessage(replyMsg, threadID, messageID);
-      });
     }
   }
 };
