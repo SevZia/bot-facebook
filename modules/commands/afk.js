@@ -43,7 +43,7 @@ async function summarizeChat(chatLogs, config) {
 module.exports = {
   config: {
     name: "afk",
-    version: "10.0.0",
+    version: "11.0.0",
     hasPermssion: 0,
     credits: "SevZia",
     description: "Bật AFK, báo lý do khi bị tag và tóm tắt bằng AI khi online",
@@ -58,7 +58,7 @@ module.exports = {
     const reason = args.join(" ") || "Không có lý do";
     const afkData = getAfkData();
 
-    let name = "Huy";
+    let name = "Văn Huy";
     try {
       const userInfo = await api.getUserInfo(senderID);
       if (userInfo && userInfo[senderID]) name = userInfo[senderID].name;
@@ -76,35 +76,32 @@ module.exports = {
     return api.sendMessage(`✅ Đã bật chế độ AFK!\n📝 Lý do: ${reason}`, threadID, messageID);
   },
 
-  // 2. Lắng nghe mọi tin nhắn trực tiếp trong Command
+  // 2. Lắng nghe sự kiện
   handleEvent: async function ({ api, event, config }) {
     const { senderID, threadID, messageID, mentions, body } = event;
     if (!threadID || !body) return;
 
+    // BỎ QUA NẾU LÀ CÂU LỆNH BẬT AFK (Tránh tự kích hoạt tắt AFK)
+    if (body.startsWith("/") || body.toLowerCase().startsWith("afk")) return;
+
     const afkData = getAfkData();
 
-    // A. Kiểm tra xem tin nhắn có tag/gọi tên ai đang AFK không
+    // A. Kiểm tra xem tin nhắn có tag người đang AFK không
     let isTagMsg = false;
     for (const [afkUID, userAfk] of Object.entries(afkData)) {
       let isTagged = false;
 
-      // 1. Bắt qua Mention xanh của FB
+      // Tag qua Mention xanh của FB
       if (mentions && Object.keys(mentions).length > 0 && mentions[afkUID]) {
         isTagged = true;
       }
 
-      // 2. Bắt qua chuỗi văn bản (Tên FB, hoặc chữ "Huy", "Anh Huy", "@Anh Huy")
+      // Tag qua Chữ viết (Huy, Văn Huy, @Anh Huy,...)
       const lowerBody = body.toLowerCase();
-      if (!isTagged) {
-        if (
-          lowerBody.includes("huy") || 
-          (userAfk.name && lowerBody.includes(userAfk.name.toLowerCase()))
-        ) {
-          isTagged = true;
-        }
+      if (!isTagged && (lowerBody.includes("huy") || (userAfk.name && lowerBody.includes(userAfk.name.toLowerCase())))) {
+        isTagged = true;
       }
 
-      // Nếu phát hiện Tag / Gọi tên
       if (isTagged) {
         isTagMsg = true;
 
@@ -119,10 +116,10 @@ module.exports = {
         userAfk.mentions.push({ authorID: senderID, authorName: authorName, content: body });
         saveAfkData(afkData);
 
-        // Phản hồi thông báo AFK ngay lập tức
+        // Trả lời báo lý do AFK khi có người tag
         return api.sendMessage(`⚠️ ${userAfk.name} hiện đang AFK!\n📝 Lý do: ${userAfk.reason}`, threadID, messageID);
       } else if (senderID !== afkUID) {
-        // Lưu tin nhắn nhóm cho AI tóm tắt
+        // Lưu nhật ký chat cho AI tóm tắt
         let authorName = "Thành viên";
         try {
           const userInfo = await api.getUserInfo(senderID);
@@ -133,8 +130,11 @@ module.exports = {
       }
     }
 
-    // B. Nếu người AFK nhắn một tin nhắn BÌNH THƯỜNG (không chứa chữ tag tên mình) -> Tắt AFK + Xuất Báo Cáo
+    // B. Khi chính người AFK nhắn tin lại (KHÔNG PHẢI LỆNH AFK) -> Mới chính thức Tắt AFK & Xuất báo cáo
     if (afkData[senderID] && !isTagMsg) {
+      // Bỏ qua nếu thời gian vừa bật AFK chưa quá 3 giây (tránh trùng lặp tin nhắn)
+      if (Date.now() - afkData[senderID].time < 3000) return;
+
       const userAfk = afkData[senderID];
       delete afkData[senderID];
       saveAfkData(afkData);
