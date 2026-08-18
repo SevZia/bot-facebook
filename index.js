@@ -39,6 +39,18 @@ if (!fs.existsSync(appStatePath)) {
 let appState;
 try {
   appState = JSON.parse(fs.readFileSync(appStatePath, "utf-8"));
+
+  // Tự động sửa Domain cookie chuẩn sang .facebook.com để khắc phục lỗi domain messenger
+  if (Array.isArray(appState)) {
+    appState = appState.map(item => {
+      if (item.domain && !item.domain.startsWith(".")) {
+        item.domain = "." + item.domain.replace(/^(www\.|m\.)/, "");
+      } else if (item.domain === "facebook.com" || item.domain === "www.facebook.com") {
+        item.domain = ".facebook.com";
+      }
+      return item;
+    });
+  }
 } catch (e) {
   console.error("❌ LỖI: File appstate.json bị hỏng hoặc không đúng định dạng JSON!");
   process.exit(1);
@@ -81,7 +93,7 @@ if (fs.existsSync(cmdDirPath)) {
   console.error("❌ Không tìm thấy thư mục modules/commands!");
 }
 
-login({ appState }, (err, api) => {
+login({ appState }, { forceLogin: true, listenEvents: true }, (err, api) => {
   if (err) return console.error("❌ Lỗi đăng nhập Facebook:", err);
 
   api.setOptions({
