@@ -1,4 +1,4 @@
-const login = require("fb-chat-api");
+const login = require("fca-unofficial");
 const fs = require("fs-extra");
 const path = require("path");
 const express = require("express");
